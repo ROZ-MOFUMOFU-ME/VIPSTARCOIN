@@ -122,3 +122,17 @@ contrib/devtools/split-debug.sh
 .idea/
 CMakeLists.txt
 cmake-build-debug/
+
+# VS Code files for those working on multiple tools
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Berkeley DB (./contrib/install_db4.sh `pwd`)
+db-4.8.30.NC.tar.gz
+/db4/
+
+*~

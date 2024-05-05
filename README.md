@@ -11,6 +11,33 @@ VIPSTARCOIN is a new blockchain based on HTMLCOIN which uses Bitcoin Core and in
 
 Quickstart
 ----------
+### Build on Debian
+
+    This is a quick start script for compiling VIPSTARCOIN on Debian
+
+    sudo apt -y install build-essential libtool autotools-dev automake pkg-config libssl-dev libevent-dev bsdmainutils git cmake libboost-all-dev
+    sudo apt -y install software-properties-common
+ 
+    # If you want to build the Qt GUI:
+    sudo apt -y install libminiupnpc-dev libzmq3-dev libqt5gui5 libqt5core5a libqt5dbus5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler libqrencode-dev help2man
+
+    git clone https://github.com/VIPSTARCOIN/VIPSTARCOIN --recursive
+    cd VIPSTARCOIN
+
+    # Note autogen will prompt to install some more dependencies if needed
+    ./autogen.sh && ./contrib/install_db4.sh `pwd` && export BDB_PREFIX=$PWD/db4 && ./configure BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" BDB_CFLAGS="-I${BDB_PREFIX}/include" --without-gui
+    make -j$(nproc) NO_QT=1&& make check -j$(nproc)
+
+    # Options after Build
+    - (optional) Reduce binary size using strip (about 90% file size reduction)
+    ```
+    strip ./src/VIPSTARCOIN-cli && \
+    strip ./src/VIPSTARCOINd && \
+    strip ./src/qt/VIPSTARCOIN-qt && \
+    strip ./src/VIPSTARCOIN-tx && \
+    strip ./src/test/test_VIPSTARCOIN
+    ```
+
 ### Build on Ubuntu
 
     This is a quick start script for compiling VIPSTARCOIN on Ubuntu
