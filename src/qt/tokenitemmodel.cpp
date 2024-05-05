@@ -504,11 +504,11 @@ static void NotifyTokenChanged(TokenItemModel *tim, CWallet *wallet, const uint2
 void TokenItemModel::subscribeToCoreSignals()
 {
     // Connect signals to wallet
-    wallet->NotifyTokenChanged.connect(boost::bind(NotifyTokenChanged, this, _1, _2, _3));
+    wallet->NotifyTokenChanged.connect(boost::bind(NotifyTokenChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
 }
 
 void TokenItemModel::unsubscribeFromCoreSignals()
 {
     // Disconnect signals from wallet
-    wallet->NotifyTokenChanged.disconnect(boost::bind(NotifyTokenChanged, this, _1, _2, _3));
+    wallet->NotifyTokenChanged.disconnect(boost::bind(NotifyTokenChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
 }

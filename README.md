@@ -25,8 +25,12 @@ Quickstart
     cd VIPSTARCOIN
 
     # Note autogen will prompt to install some more dependencies if needed
+    ./autogen.sh && ./contrib/install_db4.sh `pwd` && export BDB_PREFIX=$PWD/db4 && ./configure BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" BDB_CFLAGS="-I${BDB_PREFIX}/include"
+    make -j$(nproc)
+
+    # if you won't need the Qt GUI:
     ./autogen.sh && ./contrib/install_db4.sh `pwd` && export BDB_PREFIX=$PWD/db4 && ./configure BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" BDB_CFLAGS="-I${BDB_PREFIX}/include" --without-gui
-    make -j$(nproc) NO_QT=1&& make check -j$(nproc)
+    make -j$(nproc) NO_QT=1
 
     # Options after Build
     - (optional) Reduce binary size using strip (about 90% file size reduction)
@@ -34,8 +38,7 @@ Quickstart
     strip ./src/VIPSTARCOIN-cli && \
     strip ./src/VIPSTARCOINd && \
     strip ./src/qt/VIPSTARCOIN-qt && \
-    strip ./src/VIPSTARCOIN-tx && \
-    strip ./src/test/test_VIPSTARCOIN
+    strip ./src/VIPSTARCOIN-tx
     ```
 
 ### Build on Ubuntu
