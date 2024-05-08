@@ -1,3 +1,6 @@
 [submodule "src/cpp-ethereum"]
 	path = src/cpp-ethereum
 	url = https://github.com/VIPSTARCOIN/cpp-ethereum.git
+[submodule "cpp-ethereum"]
+	path = cpp-ethereum
+	url = https://github.com/ROZ-MOFUMOFU-ME/cpp-ethereum
