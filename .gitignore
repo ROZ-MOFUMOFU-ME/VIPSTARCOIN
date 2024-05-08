@@ -136,3 +136,7 @@ db-4.8.30.NC.tar.gz
 /db4/
 
 *~
+
+*.Identifier
+*.Po
+.dirstamp
