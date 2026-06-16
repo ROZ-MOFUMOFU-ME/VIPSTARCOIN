@@ -44,7 +44,7 @@ jobs:
             curl ca-certificates python3 \
             libssl-dev libevent-dev libboost-all-dev \
             qtbase5-dev qttools5-dev qttools5-dev-tools libqt5svg5-dev \
-            libqrencode-dev libminiupnpc-dev
+            libprotobuf-dev protobuf-compiler libqrencode-dev libminiupnpc-dev
       - name: Build Berkeley DB 4.8
         run: ./contrib/install_db4.sh "$(pwd)"
       - name: Build VIPSTARCOIN
@@ -94,8 +94,9 @@ jobs:
           export PATH="$(brew --prefix qt@5)/bin:$PATH"
           export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig"
           BDB="$(brew --prefix berkeley-db@4)"
+          BOOST="$(brew --prefix boost)"
           ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports \
-            --with-boost="$(brew --prefix boost)" \
+            --with-boost="$BOOST" --with-boost-libdir="$BOOST/lib" \
             BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include"
           make ${MAKEJOBS}
       - name: Stage and package
