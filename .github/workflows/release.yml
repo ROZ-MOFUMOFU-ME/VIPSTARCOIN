@@ -1,0 +1,226 @@
+name: Release
+
+# Build VIPSTARCOIN binaries for every supported platform and publish them as a
+# GitHub Release whenever a tag like v1.2.3 is pushed. Can also be run manually
+# from the Actions tab (workflow_dispatch) to produce artifacts without a tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MAKEJOBS: "-j3"
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Linux (amd64/arm64) and Windows (amd64) — cross-compiled on Ubuntu using
+  # the in-tree `depends` system (builds Qt/BDB/Boost/OpenSSL from source).
+  # -------------------------------------------------------------------------
+  depends:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-amd64
+            host: x86_64-pc-linux-gnu
+            packages: ""
+            config: "--enable-glibc-back-compat --enable-reduce-exports"
+          - name: linux-arm64
+            host: aarch64-linux-gnu
+            packages: "g++-aarch64-linux-gnu"
+            config: "--enable-glibc-back-compat --enable-reduce-exports"
+          - name: windows-amd64
+            host: x86_64-w64-mingw32
+            packages: "g++-mingw-w64-x86-64 nsis"
+            config: "--enable-reduce-exports"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libtool autotools-dev automake pkg-config bsdmainutils \
+            curl ca-certificates python3 ${{ matrix.packages }}
+
+      - name: Use POSIX mingw threads (Windows)
+        if: contains(matrix.host, 'mingw32')
+        run: |
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+
+      - name: Cache depends
+        uses: actions/cache@v4
+        with:
+          path: |
+            depends/${{ matrix.host }}
+            depends/built
+            depends/sources
+          key: depends-${{ matrix.host }}-${{ hashFiles('depends/packages/*.mk', 'depends/hosts/*.mk', 'depends/Makefile') }}
+
+      - name: Build depends
+        run: make ${MAKEJOBS} -C depends HOST=${{ matrix.host }}
+
+      - name: Build VIPSTARCOIN
+        run: |
+          ./autogen.sh
+          CONFIG_SITE=$PWD/depends/${{ matrix.host }}/share/config.site \
+            ./configure --prefix=/ ${{ matrix.config }}
+          make ${MAKEJOBS}
+
+      - name: Stage binaries
+        run: |
+          set -e
+          OUT="VIPSTARCOIN-${{ matrix.name }}"
+          mkdir -p "$OUT"
+          if [ "${{ matrix.host }}" = "x86_64-w64-mingw32" ]; then
+            EXE=".exe"
+          else
+            EXE=""
+          fi
+          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do
+            cp "src/$b$EXE" "$OUT/" 2>/dev/null || true
+          done
+          cp "src/qt/VIPSTARCOIN-qt$EXE" "$OUT/" 2>/dev/null || true
+          # strip native linux binaries (skip for cross targets where strip may differ)
+          if [ "${{ matrix.host }}" = "x86_64-pc-linux-gnu" ]; then strip "$OUT/"* 2>/dev/null || true; fi
+          ls -lh "$OUT"
+
+      - name: Package
+        run: |
+          OUT="VIPSTARCOIN-${{ matrix.name }}"
+          if [ "${{ matrix.host }}" = "x86_64-w64-mingw32" ]; then
+            zip -r "${OUT}.zip" "$OUT"
+          else
+            tar -czf "${OUT}.tar.gz" "$OUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            VIPSTARCOIN-${{ matrix.name }}.tar.gz
+            VIPSTARCOIN-${{ matrix.name }}.zip
+          if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # macOS (amd64 on macos-13, arm64 on macos-14) — native build via Homebrew.
+  # -------------------------------------------------------------------------
+  macos:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-amd64
+            runner: macos-13
+          - name: macos-arm64
+            runner: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew install automake libtool boost pkg-config libevent qt@5 berkeley-db@4 qrencode miniupnpc
+
+      - name: Build VIPSTARCOIN
+        run: |
+          ./autogen.sh
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
+          export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig"
+          BDB=$(brew --prefix berkeley-db@4)
+          ./configure --with-gui=qt5 --with-incompatible-bdb \
+            BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include" \
+            --enable-reduce-exports
+          make ${MAKEJOBS}
+
+      - name: Stage binaries
+        run: |
+          OUT="VIPSTARCOIN-${{ matrix.name }}"
+          mkdir -p "$OUT"
+          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b" "$OUT/" 2>/dev/null || true; done
+          cp "src/qt/VIPSTARCOIN-qt" "$OUT/" 2>/dev/null || true
+          ls -lh "$OUT"
+          tar -czf "${OUT}.tar.gz" "$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: VIPSTARCOIN-${{ matrix.name }}.tar.gz
+          if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Windows on ARM64 — EXPERIMENTAL. This codebase only supports the autotools
+  # + mingw toolchain; there is no aarch64 mingw in `depends`, so this is a
+  # best-effort MSYS2/clangarm64 attempt and is allowed to fail.
+  # -------------------------------------------------------------------------
+  windows-arm64:
+    name: windows-arm64 (experimental)
+    runs-on: windows-11-arm
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: >-
+            base-devel git autoconf automake libtool pkgconf
+            mingw-w64-clang-aarch64-toolchain
+            mingw-w64-clang-aarch64-boost
+            mingw-w64-clang-aarch64-libevent
+            mingw-w64-clang-aarch64-db
+            mingw-w64-clang-aarch64-qt5-base
+      - name: Build (best effort)
+        shell: msys2 {0}
+        run: |
+          ./autogen.sh
+          ./configure --with-incompatible-bdb --without-gui --enable-reduce-exports || ./configure --with-incompatible-bdb --without-gui
+          make ${MAKEJOBS}
+      - name: Stage binaries
+        shell: msys2 {0}
+        run: |
+          OUT="VIPSTARCOIN-windows-arm64"; mkdir -p "$OUT"
+          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b.exe" "$OUT/" 2>/dev/null || true; done
+          tar -czf "${OUT}.tar.gz" "$OUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64
+          path: VIPSTARCOIN-windows-arm64.tar.gz
+          if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Collect all artifacts and publish the GitHub Release (tag pushes only).
+  # -------------------------------------------------------------------------
+  release:
+    name: Publish Release
+    needs: [depends, macos, windows-arm64]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Show artifacts
+        run: find artifacts -type f
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VIPSTARCOIN ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: artifacts/**/*
