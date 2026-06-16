@@ -1,8 +1,8 @@
 name: Release
 
 # Build VIPSTARCOIN binaries for every supported platform and publish them as a
-# GitHub Release whenever a tag like v1.2.3 is pushed. Can also be run manually
-# from the Actions tab (workflow_dispatch) to produce artifacts without a tag.
+# GitHub Release when a tag like v1.2.3 is pushed. Use the Actions tab
+# (workflow_dispatch) to test the builds without publishing a release.
 
 on:
   push:
@@ -18,102 +18,58 @@ env:
 
 jobs:
   # -------------------------------------------------------------------------
-  # Linux (amd64/arm64) and Windows (amd64) — cross-compiled on Ubuntu using
-  # the in-tree `depends` system (builds Qt/BDB/Boost/OpenSSL from source).
+  # Linux amd64 (ubuntu-22.04) and arm64 (ubuntu-24.04-arm) — native build
+  # against system Qt5/Boost/OpenSSL/libevent + Berkeley DB 4.8 (install_db4.sh).
   # -------------------------------------------------------------------------
-  depends:
+  linux:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-amd64
-            host: x86_64-pc-linux-gnu
-            packages: ""
-            config: "--enable-glibc-back-compat --enable-reduce-exports"
+            runner: ubuntu-22.04
           - name: linux-arm64
-            host: aarch64-linux-gnu
-            packages: "g++-aarch64-linux-gnu"
-            config: "--enable-glibc-back-compat --enable-reduce-exports"
-          - name: windows-amd64
-            host: x86_64-w64-mingw32
-            packages: "g++-mingw-w64-x86-64 nsis"
-            config: "--enable-reduce-exports"
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential libtool autotools-dev automake pkg-config bsdmainutils \
-            curl ca-certificates python3 ${{ matrix.packages }}
-
-      - name: Use POSIX mingw threads (Windows)
-        if: contains(matrix.host, 'mingw32')
-        run: |
-          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
-          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
-
-      - name: Cache depends
-        uses: actions/cache@v4
-        with:
-          path: |
-            depends/${{ matrix.host }}
-            depends/built
-            depends/sources
-          key: depends-${{ matrix.host }}-${{ hashFiles('depends/packages/*.mk', 'depends/hosts/*.mk', 'depends/Makefile') }}
-
-      - name: Build depends
-        run: make ${MAKEJOBS} -C depends HOST=${{ matrix.host }}
-
+            curl ca-certificates python3 \
+            libssl-dev libevent-dev libboost-all-dev \
+            qtbase5-dev qttools5-dev qttools5-dev-tools libqt5svg5-dev \
+            libqrencode-dev libminiupnpc-dev
+      - name: Build Berkeley DB 4.8
+        run: ./contrib/install_db4.sh "$(pwd)"
       - name: Build VIPSTARCOIN
         run: |
           ./autogen.sh
-          CONFIG_SITE=$PWD/depends/${{ matrix.host }}/share/config.site \
-            ./configure --prefix=/ ${{ matrix.config }}
+          export BDB_PREFIX="$PWD/db4"
+          ./configure --with-gui=qt5 \
+            BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" BDB_CFLAGS="-I${BDB_PREFIX}/include"
           make ${MAKEJOBS}
-
-      - name: Stage binaries
+      - name: Stage and package
         run: |
-          set -e
-          OUT="VIPSTARCOIN-${{ matrix.name }}"
-          mkdir -p "$OUT"
-          if [ "${{ matrix.host }}" = "x86_64-w64-mingw32" ]; then
-            EXE=".exe"
-          else
-            EXE=""
-          fi
-          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do
-            cp "src/$b$EXE" "$OUT/" 2>/dev/null || true
-          done
-          cp "src/qt/VIPSTARCOIN-qt$EXE" "$OUT/" 2>/dev/null || true
-          # strip native linux binaries (skip for cross targets where strip may differ)
-          if [ "${{ matrix.host }}" = "x86_64-pc-linux-gnu" ]; then strip "$OUT/"* 2>/dev/null || true; fi
+          OUT="VIPSTARCOIN-${{ matrix.name }}"; mkdir -p "$OUT"
+          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b" "$OUT/" 2>/dev/null || true; done
+          cp src/qt/VIPSTARCOIN-qt "$OUT/" 2>/dev/null || true
+          strip "$OUT/"* 2>/dev/null || true
           ls -lh "$OUT"
-
-      - name: Package
-        run: |
-          OUT="VIPSTARCOIN-${{ matrix.name }}"
-          if [ "${{ matrix.host }}" = "x86_64-w64-mingw32" ]; then
-            zip -r "${OUT}.zip" "$OUT"
-          else
-            tar -czf "${OUT}.tar.gz" "$OUT"
-          fi
-
+          tar -czf "${OUT}.tar.gz" "$OUT"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: |
-            VIPSTARCOIN-${{ matrix.name }}.tar.gz
-            VIPSTARCOIN-${{ matrix.name }}.zip
+          path: VIPSTARCOIN-${{ matrix.name }}.tar.gz
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # macOS (amd64 on macos-13, arm64 on macos-14) — native build via Homebrew.
+  # macOS amd64 (macos-13) and arm64 (macos-14) — native build via Homebrew.
   # -------------------------------------------------------------------------
   macos:
     name: ${{ matrix.name }}
@@ -130,31 +86,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
       - name: Install dependencies
-        run: |
-          brew install automake libtool boost pkg-config libevent qt@5 berkeley-db@4 qrencode miniupnpc
-
+        run: brew install automake libtool boost pkg-config libevent qt@5 berkeley-db@4 qrencode miniupnpc
       - name: Build VIPSTARCOIN
         run: |
           ./autogen.sh
           export PATH="$(brew --prefix qt@5)/bin:$PATH"
           export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig"
-          BDB=$(brew --prefix berkeley-db@4)
-          ./configure --with-gui=qt5 --with-incompatible-bdb \
-            BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include" \
-            --enable-reduce-exports
+          BDB="$(brew --prefix berkeley-db@4)"
+          ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports \
+            --with-boost="$(brew --prefix boost)" \
+            BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include"
           make ${MAKEJOBS}
-
-      - name: Stage binaries
+      - name: Stage and package
         run: |
-          OUT="VIPSTARCOIN-${{ matrix.name }}"
-          mkdir -p "$OUT"
+          OUT="VIPSTARCOIN-${{ matrix.name }}"; mkdir -p "$OUT"
           for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b" "$OUT/" 2>/dev/null || true; done
-          cp "src/qt/VIPSTARCOIN-qt" "$OUT/" 2>/dev/null || true
+          cp src/qt/VIPSTARCOIN-qt "$OUT/" 2>/dev/null || true
           ls -lh "$OUT"
           tar -czf "${OUT}.tar.gz" "$OUT"
-
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
@@ -162,9 +112,54 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # Windows on ARM64 — EXPERIMENTAL. This codebase only supports the autotools
-  # + mingw toolchain; there is no aarch64 mingw in `depends`, so this is a
-  # best-effort MSYS2/clangarm64 attempt and is allowed to fail.
+  # Windows amd64 — cross-compiled on Ubuntu via the in-tree depends system.
+  # Still being stabilised (depends Qt/Boost), so it must not block the others.
+  # -------------------------------------------------------------------------
+  windows-amd64:
+    name: windows-amd64
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libtool autotools-dev automake pkg-config bsdmainutils \
+            curl ca-certificates python3 g++-mingw-w64-x86-64 nsis
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+      - name: Cache depends
+        uses: actions/cache@v4
+        with:
+          path: |
+            depends/x86_64-w64-mingw32
+            depends/built
+            depends/sources
+          key: depends-x86_64-w64-mingw32-${{ hashFiles('depends/packages/*.mk', 'depends/hosts/*.mk') }}
+      - name: Build depends
+        run: make ${MAKEJOBS} -C depends HOST=x86_64-w64-mingw32
+      - name: Build VIPSTARCOIN
+        run: |
+          ./autogen.sh
+          CONFIG_SITE=$PWD/depends/x86_64-w64-mingw32/share/config.site ./configure --prefix=/ --enable-reduce-exports
+          make ${MAKEJOBS}
+      - name: Stage and package
+        run: |
+          OUT="VIPSTARCOIN-windows-amd64"; mkdir -p "$OUT"
+          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b.exe" "$OUT/" 2>/dev/null || true; done
+          cp src/qt/VIPSTARCOIN-qt.exe "$OUT/" 2>/dev/null || true
+          ls -lh "$OUT"; zip -r "${OUT}.zip" "$OUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: VIPSTARCOIN-windows-amd64.zip
+          if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Windows ARM64 — EXPERIMENTAL best effort (no aarch64 mingw in depends).
   # -------------------------------------------------------------------------
   windows-arm64:
     name: windows-arm64 (experimental)
@@ -184,14 +179,13 @@ jobs:
             mingw-w64-clang-aarch64-boost
             mingw-w64-clang-aarch64-libevent
             mingw-w64-clang-aarch64-db
-            mingw-w64-clang-aarch64-qt5-base
       - name: Build (best effort)
         shell: msys2 {0}
         run: |
           ./autogen.sh
-          ./configure --with-incompatible-bdb --without-gui --enable-reduce-exports || ./configure --with-incompatible-bdb --without-gui
+          ./configure --with-incompatible-bdb --without-gui --disable-reduce-exports
           make ${MAKEJOBS}
-      - name: Stage binaries
+      - name: Stage and package
         shell: msys2 {0}
         run: |
           OUT="VIPSTARCOIN-windows-arm64"; mkdir -p "$OUT"
@@ -204,19 +198,20 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # Collect all artifacts and publish the GitHub Release (tag pushes only).
+  # Publish whatever built successfully (tag pushes only). Runs even if some
+  # platform jobs failed, so a partial set of binaries is still released.
   # -------------------------------------------------------------------------
   release:
     name: Publish Release
-    needs: [depends, macos, windows-arm64]
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, macos, windows-amd64, windows-arm64]
+    if: always() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Show artifacts
-        run: find artifacts -type f
+        run: find artifacts -type f || true
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
