@@ -71,7 +71,18 @@ patch -p2 < clang.patch
 
 cd build_unix/
 
-"${BDB_PREFIX}/${BDB_VERSION}/dist/configure" \
+# Berkeley DB 4.8 predates modern compiler defaults. GCC 14 (Debian 13 "trixie")
+# in particular promotes several legacy C diagnostics -- implicit-function-declaration,
+# implicit-int, int-conversion, incompatible-pointer-types -- from warnings to hard
+# errors. That makes BDB's autoconf feature tests fail; most visibly the mutex probe
+# falls back to UNIX/fcntl and aborts configure with
+#   "configure: error: Unable to find a mutex implementation".
+# Downgrading those back to warnings (plus -fcommon for the old tentative-definition
+# style) lets the unmodified BDB sources configure and compile again. These flags are
+# harmless on older compilers, where they are already warnings.
+BDB_COMPAT_CFLAGS="-fcommon -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion -Wno-error=incompatible-pointer-types"
+
+CFLAGS="-O2 ${BDB_COMPAT_CFLAGS} ${CFLAGS}" "${BDB_PREFIX}/${BDB_VERSION}/dist/configure" \
   --enable-cxx --disable-shared --disable-replication --with-pic --prefix="${BDB_PREFIX}" \
   "${@}"
 
