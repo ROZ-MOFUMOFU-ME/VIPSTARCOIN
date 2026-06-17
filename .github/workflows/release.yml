@@ -155,7 +155,7 @@ jobs:
           # (-fpermissive for the legacy Boost.Function cast on GCC 14+).
           ./autogen.sh
           ./configure --without-gui --with-incompatible-bdb --disable-reduce-exports --disable-shared \
-            CXXFLAGS="-std=c++14" \
+            CC=/mingw64/bin/gcc CXX=/mingw64/bin/g++ CXXFLAGS="-std=c++14" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make ${MAKEJOBS}
       - name: Stage and package
