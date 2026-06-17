@@ -87,12 +87,12 @@ jobs:
         with:
           submodules: recursive
       - name: Install dependencies
-        run: brew install automake libtool boost pkg-config libevent qt@5 berkeley-db@4 qrencode miniupnpc
+        run: brew install automake libtool boost pkg-config libevent qt@5 berkeley-db@4 qrencode miniupnpc protobuf@21
       - name: Build VIPSTARCOIN
         run: |
           ./autogen.sh
-          export PATH="$(brew --prefix qt@5)/bin:$PATH"
-          export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig"
+          export PATH="$(brew --prefix qt@5)/bin:$(brew --prefix protobuf@21)/bin:$PATH"
+          export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix protobuf@21)/lib/pkgconfig"
           BDB="$(brew --prefix berkeley-db@4)"
           BOOST="$(brew --prefix boost)"
           # Homebrew Boost (>=1.84) requires C++14+, but the tree configures as
