@@ -298,6 +298,11 @@ case $host in
      AC_CHECK_LIB([shlwapi],      [main],, AC_MSG_ERROR(lib missing))
      AC_CHECK_LIB([iphlpapi],      [main],, AC_MSG_ERROR(lib missing))
      AC_CHECK_LIB([crypt32],      [main],, AC_MSG_ERROR(lib missing))
+     dnl bcrypt: Boost.Filesystem's unique_path.cpp calls BCryptGenRandom on
+     dnl Windows; modern mingw boost no longer pulls it in transitively, so link
+     dnl it explicitly. Lands in LIBS (after BOOST_LIBS on the link line) so ld
+     dnl resolves libboost_filesystem's BCrypt* references.
+     AC_CHECK_LIB([bcrypt],      [main],, AC_MSG_ERROR(lib missing))
 
      # -static is interpreted by libtool, where it has a different meaning.
      # In libtool-speak, it's -all-static.
