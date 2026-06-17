@@ -95,8 +95,12 @@ jobs:
           export PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig"
           BDB="$(brew --prefix berkeley-db@4)"
           BOOST="$(brew --prefix boost)"
+          # Homebrew Boost (>=1.84) requires C++14+, but the tree configures as
+          # C++11. Build macOS as C++14 (a near-superset of C++11) so Boost's
+          # headers compile and AX_BOOST_SYSTEM's link test succeeds.
           ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports \
             --with-boost="$BOOST" --with-boost-libdir="$BOOST/lib" \
+            CXXFLAGS="-std=c++14" \
             BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include"
           make ${MAKEJOBS}
       - name: Stage and package
