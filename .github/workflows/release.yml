@@ -152,6 +152,9 @@ jobs:
         run: |
           # MSYS2 only ships protobuf 5.x (needs C++17) but configure's C++11
           # probe breaks under -std=c++17, so build without the GUI as C++14.
+          # The runner sets JAVA_HOME, which makes secp256k1 enable its JNI
+          # bindings and then fail (no jni.h in MSYS2); unset it to keep JNI off.
+          unset JAVA_HOME
           ./autogen.sh
           ./configure --without-gui --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
