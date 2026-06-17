@@ -146,17 +146,16 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-libevent
             mingw-w64-x86_64-db
-            mingw-w64-x86_64-qt5-base
-            mingw-w64-x86_64-qt5-tools
-            mingw-w64-x86_64-qrencode
             mingw-w64-x86_64-miniupnpc
-            mingw-w64-x86_64-protobuf
             mingw-w64-x86_64-openssl
-      - name: Build VIPSTARCOIN
+      - name: Build VIPSTARCOIN (headless)
         run: |
+          # Headless: MSYS2 only has protobuf 5.x (needs C++17), but configure's
+          # C++11 probe breaks under -std=c++17. Build without the GUI as C++14
+          # (-fpermissive for the legacy Boost.Function cast on GCC 14+).
           ./autogen.sh
-          ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports --disable-shared \
-            CXXFLAGS="-std=c++17 -fpermissive" \
+          ./configure --without-gui --with-incompatible-bdb --disable-reduce-exports --disable-shared \
+            CXXFLAGS="-std=c++14 -fpermissive" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make ${MAKEJOBS}
       - name: Stage and package
