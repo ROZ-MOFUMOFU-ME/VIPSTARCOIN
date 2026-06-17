@@ -102,7 +102,7 @@ jobs:
             --with-boost="$BOOST" --with-boost-libdir="$BOOST/lib" \
             CXXFLAGS="-std=c++14" \
             BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include"
-          make ${MAKEJOBS}
+          make -k ${MAKEJOBS}
       - name: Stage and package
         run: |
           OUT="VIPSTARCOIN-${{ matrix.name }}"; mkdir -p "$OUT"
