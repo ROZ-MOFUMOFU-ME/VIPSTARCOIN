@@ -141,7 +141,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
-            base-devel git autoconf automake libtool pkgconf
+            base-devel git autoconf automake libtool pkgconf zip
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-libevent
@@ -160,7 +160,7 @@ jobs:
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
-          make -k ${MAKEJOBS}
+          make ${MAKEJOBS}
       - name: Stage and package
         run: |
           OUT="VIPSTARCOIN-windows-amd64"; mkdir -p "$OUT"
