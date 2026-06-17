@@ -32,11 +32,14 @@ bool dockClickHandler(id self,SEL _cmd,...) {
 
 void setupDockClickHandler() {
     Class cls = objc_getClass("NSApplication");
-    id appInst = objc_msgSend((id)cls, sel_registerName("sharedApplication"));
+    // The modern Objective-C runtime declares objc_msgSend as a parameterless
+    // stub, so it must be called through a correctly typed function pointer.
+    id (*msgSend)(id, SEL) = (id (*)(id, SEL))objc_msgSend;
+    id appInst = msgSend((id)cls, sel_registerName("sharedApplication"));
     
     if (appInst != NULL) {
-        id delegate = objc_msgSend(appInst, sel_registerName("delegate"));
-        Class delClass = (Class)objc_msgSend(delegate,  sel_registerName("class"));
+        id delegate = msgSend(appInst, sel_registerName("delegate"));
+        Class delClass = (Class)msgSend(delegate,  sel_registerName("class"));
         SEL shouldHandle = sel_registerName("applicationShouldHandleReopen:hasVisibleWindows:");
         if (class_getInstanceMethod(delClass, shouldHandle))
             class_replaceMethod(delClass, shouldHandle, (IMP)dockClickHandler, "B@:");
