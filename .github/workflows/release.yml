@@ -150,13 +150,14 @@ jobs:
             mingw-w64-x86_64-openssl
       - name: Build VIPSTARCOIN (headless)
         run: |
-          # Headless: MSYS2 only has protobuf 5.x (needs C++17), but configure's
-          # C++11 probe breaks under -std=c++17. Build without the GUI as C++14
-          # (-fpermissive for the legacy Boost.Function cast on GCC 14+).
+          echo "== compiler =="; which g++ gcc; g++ --version | head -1
+          printf 'int main(){auto f=[](){return 1;};return f();}\n' > /tmp/t.cpp
+          g++ -std=c++11 /tmp/t.cpp -o /tmp/t.exe && echo "c++11 standalone OK" || echo "c++11 standalone FAIL"
           ./autogen.sh
           ./configure --without-gui --with-incompatible-bdb --disable-reduce-exports --disable-shared \
             CC=/mingw64/bin/gcc CXX=/mingw64/bin/g++ CXXFLAGS="-std=c++14" \
-            BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
+            BDB_LIBS="-ldb_cxx" BDB_CFLAGS="" \
+          || { echo "=== config.log (C++11 probe) ==="; grep -n -B2 -A25 -i "C++11\|conftest.*cpp\|cxx_compile" config.log | head -80; exit 1; }
           make ${MAKEJOBS}
       - name: Stage and package
         run: |
