@@ -120,39 +120,44 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # Windows amd64 — cross-compiled on Ubuntu via the in-tree depends system.
-  # Still being stabilised (depends Qt/Boost), so it must not block the others.
+  # Windows amd64 — native MSYS2/MinGW build with modern packages (the in-tree
+  # depends pins Qt 5.7/Boost 1.63 which no longer build). Compiled as C++17 with
+  # -fpermissive so the legacy sources work with current Boost/protobuf. Still
+  # being stabilised, so it must not block the others.
   # -------------------------------------------------------------------------
   windows-amd64:
     name: windows-amd64
-    runs-on: ubuntu-22.04
+    runs-on: windows-latest
     continue-on-error: true
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential libtool autotools-dev automake pkg-config bsdmainutils \
-            curl ca-certificates python3 g++-mingw-w64-x86-64 nsis
-          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
-          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
-      - name: Cache depends
-        uses: actions/cache@v4
+      - uses: msys2/setup-msys2@v2
         with:
-          path: |
-            depends/x86_64-w64-mingw32
-            depends/built
-            depends/sources
-          key: depends-x86_64-w64-mingw32-${{ hashFiles('depends/packages/*.mk', 'depends/hosts/*.mk') }}
-      - name: Build depends
-        run: make ${MAKEJOBS} -C depends HOST=x86_64-w64-mingw32
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel git autoconf automake libtool pkgconf
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-libevent
+            mingw-w64-x86_64-db
+            mingw-w64-x86_64-qt5-base
+            mingw-w64-x86_64-qt5-tools
+            mingw-w64-x86_64-qrencode
+            mingw-w64-x86_64-miniupnpc
+            mingw-w64-x86_64-protobuf
+            mingw-w64-x86_64-openssl
       - name: Build VIPSTARCOIN
         run: |
           ./autogen.sh
-          CONFIG_SITE=$PWD/depends/x86_64-w64-mingw32/share/config.site ./configure --prefix=/ --enable-reduce-exports
+          ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports --disable-shared \
+            CXXFLAGS="-std=c++17 -fpermissive" \
+            BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make ${MAKEJOBS}
       - name: Stage and package
         run: |
