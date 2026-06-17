@@ -105,7 +105,7 @@ jobs:
             --with-boost="$BOOST" --with-boost-libdir="$BOOST/lib" \
             CXXFLAGS="-std=c++14" \
             BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include"
-          make -k ${MAKEJOBS}
+          make ${MAKEJOBS}
       - name: Stage and package
         run: |
           OUT="VIPSTARCOIN-${{ matrix.name }}"; mkdir -p "$OUT"
@@ -211,9 +211,9 @@ jobs:
   # -------------------------------------------------------------------------
   release:
     name: Publish Release
-    # Gate only on linux (the platforms that build today) so a release publishes
-    # promptly. macOS/Windows are still being stabilised and attach later.
-    needs: [linux]
+    # Gate on linux + macOS (both build now). Windows stays continue-on-error
+    # and attaches its artifacts when it succeeds.
+    needs: [linux, macos]
     if: always() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     steps:
