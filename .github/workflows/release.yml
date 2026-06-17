@@ -98,7 +98,10 @@ jobs:
           # Homebrew Boost (>=1.84) requires C++14+, but the tree configures as
           # C++11. Build macOS as C++14 (a near-superset of C++11) so Boost's
           # headers compile and AX_BOOST_SYSTEM's link test succeeds.
-          ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports \
+          # --disable-shared: macOS ld rejects undefined symbols in the shared
+          # libbitcoinconsensus.dylib (the binaries are linked from the static
+          # libs anyway), so skip building it.
+          ./configure --with-gui=qt5 --with-incompatible-bdb --disable-reduce-exports --disable-shared \
             --with-boost="$BOOST" --with-boost-libdir="$BOOST/lib" \
             CXXFLAGS="-std=c++14" \
             BDB_LIBS="-L${BDB}/lib -ldb_cxx" BDB_CFLAGS="-I${BDB}/include"
