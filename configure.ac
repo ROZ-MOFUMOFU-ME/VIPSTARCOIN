@@ -53,8 +53,11 @@ dnl Compiler with posix support is needed for cross compile some of c++ 11 featu
 case $host in
   *mingw*)
      lt_cv_deplibs_check_method="pass_all"
-     CC="$CC-posix"
-     CXX="$CXX-posix"
+     dnl Debian's mingw-w64 ships separate -posix threading variants of the
+     dnl compiler; MSYS2's gcc/g++ is already posix-threaded and has no -posix
+     dnl variant. Only switch to the -posix compiler when it actually exists.
+     if command -v "$CC-posix" >/dev/null 2>&1; then CC="$CC-posix"; fi
+     if command -v "$CXX-posix" >/dev/null 2>&1; then CXX="$CXX-posix"; fi
   ;;
 esac
 dnl Require C++11 compiler (no GNU extensions)
