@@ -93,10 +93,10 @@ bool ValidateSyncCheckpoint(uint256 hashCheckpoint)
         // Received an older checkpoint, trace back from current checkpoint
         // to the same height of the received checkpoint to verify
         // that current checkpoint should be a descendant block
-        CBlockIndex* pindex = pindexSyncCheckpoint;
-        while (pindex->nHeight > pindexCheckpointRecv->nHeight)
-            if (!(pindex = pindex->pprev))
-            	return error("ValidateSyncCheckpoint: pprev1 null - block index structure failure");
+        // O(log n) skip-list ancestor lookup instead of an O(n) pprev walk.
+        CBlockIndex* pindex = pindexSyncCheckpoint->GetAncestor(pindexCheckpointRecv->nHeight);
+        if (!pindex)
+            return error("ValidateSyncCheckpoint: ancestor null - block index structure failure");
 
         if (pindex->GetBlockHash() != hashCheckpoint)
         {
@@ -109,10 +109,10 @@ bool ValidateSyncCheckpoint(uint256 hashCheckpoint)
     // Received checkpoint should be a descendant block of the current
     // checkpoint. Trace back to the same height of current checkpoint
     // to verify.
-    CBlockIndex* pindex = pindexCheckpointRecv;
-	while (pindex->nHeight > pindexSyncCheckpoint->nHeight)
-	    if (!(pindex = pindex->pprev))
-		    return error("ValidateSyncCheckpoint: pprev2 null - block index structure failure");
+    // O(log n) skip-list ancestor lookup instead of an O(n) pprev walk.
+    CBlockIndex* pindex = pindexCheckpointRecv->GetAncestor(pindexSyncCheckpoint->nHeight);
+    if (!pindex)
+        return error("ValidateSyncCheckpoint: ancestor null - block index structure failure");
 		            
 	if (pindex->GetBlockHash() != hashSyncCheckpoint)
     {
