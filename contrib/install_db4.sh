@@ -71,6 +71,16 @@ patch -p2 < clang.patch
 
 cd build_unix/
 
+# Berkeley DB 4.8 ships a 2010-era config.guess/config.sub that does not know
+# modern hosts such as aarch64-linux-gnu, so its configure aborts with
+# "cannot guess build type; you must specify one". Refresh them from the
+# autotools files present on the system when available.
+for _cfg in config.guess config.sub; do
+  for _src in /usr/share/misc/$_cfg /usr/share/automake-*/$_cfg /usr/lib/automake-*/$_cfg; do
+    if [ -f "$_src" ]; then cp -f "$_src" "../dist/$_cfg"; break; fi
+  done
+done
+
 # Berkeley DB 4.8 predates modern compiler defaults. GCC 14 (Debian 13 "trixie")
 # in particular promotes several legacy C diagnostics -- implicit-function-declaration,
 # implicit-int, int-conversion, incompatible-pointer-types -- from warnings to hard

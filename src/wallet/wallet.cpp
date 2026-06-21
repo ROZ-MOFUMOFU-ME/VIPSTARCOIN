@@ -648,7 +648,7 @@ bool CWallet::Verify()
     uiInterface.InitMessage(_("Verifying wallet..."));
 
     // Wallet file must be a plain filename without a directory
-    if (walletFile != boost::filesystem::basename(walletFile) + boost::filesystem::extension(walletFile))
+    if (walletFile != boost::filesystem::path(walletFile).filename().string())
         return InitError(strprintf(_("Wallet %s resides outside data directory %s"), walletFile, GetDataDir().string()));
 
     if (!bitdb.Open(GetDataDir()))
@@ -4534,7 +4534,7 @@ bool CWallet::BackupWallet(const std::string& strDest)
 
                 try {
 #if BOOST_VERSION >= 104000
-                    boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
+                    boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_options::overwrite_existing);
 #else
                     boost::filesystem::copy_file(pathSrc, pathDest);
 #endif

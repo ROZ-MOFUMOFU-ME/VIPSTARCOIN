@@ -61,6 +61,12 @@ cryptopp_libcryptopp_a_SOURCES += cryptopp/sha.cpp
 cryptopp_libcryptopp_a_SOURCES += cryptopp/strciphr.cpp
 cryptopp_libcryptopp_a_SOURCES += cryptopp/winpipes.cpp
 cryptopp_libcryptopp_a_SOURCES += cryptopp/sha3.cpp
+# files.cpp defines CryptoPP::FileStore/FileSink methods (e.g. StoreInitialize).
+# GCC 16 (MSYS2/mingw) devirtualises the Source-construction path and emits a
+# direct reference to FileStore::StoreInitialize, so the symbol must be compiled
+# in; older GCC/Clang on Linux/macOS never reference it, where this .o stays an
+# unused, on-demand archive member with no effect.
+cryptopp_libcryptopp_a_SOURCES += cryptopp/files.cpp
 
 cryptopp_libcryptopp_a_SOURCES += cryptopp/cryptlib.h
 cryptopp_libcryptopp_a_SOURCES += cryptopp/cpu.h

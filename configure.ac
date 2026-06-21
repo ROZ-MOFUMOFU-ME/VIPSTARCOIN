@@ -3,7 +3,7 @@ AC_PREREQ([2.60])
 define(_CLIENT_VERSION_MAJOR, 1)
 define(_CLIENT_VERSION_MINOR, 0)
 define(_CLIENT_VERSION_REVISION, 2)
-define(_CLIENT_VERSION_BUILD, 0)
+define(_CLIENT_VERSION_BUILD, 1)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2019)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
@@ -53,8 +53,11 @@ dnl Compiler with posix support is needed for cross compile some of c++ 11 featu
 case $host in
   *mingw*)
      lt_cv_deplibs_check_method="pass_all"
-     CC="$CC-posix"
-     CXX="$CXX-posix"
+     dnl Debian's mingw-w64 ships separate -posix threading variants of the
+     dnl compiler; MSYS2's gcc/g++ is already posix-threaded and has no -posix
+     dnl variant. Only switch to the -posix compiler when it actually exists.
+     if command -v "$CC-posix" >/dev/null 2>&1; then CC="$CC-posix"; fi
+     if command -v "$CXX-posix" >/dev/null 2>&1; then CXX="$CXX-posix"; fi
   ;;
 esac
 dnl Require C++11 compiler (no GNU extensions)
@@ -295,6 +298,11 @@ case $host in
      AC_CHECK_LIB([shlwapi],      [main],, AC_MSG_ERROR(lib missing))
      AC_CHECK_LIB([iphlpapi],      [main],, AC_MSG_ERROR(lib missing))
      AC_CHECK_LIB([crypt32],      [main],, AC_MSG_ERROR(lib missing))
+     dnl bcrypt: Boost.Filesystem's unique_path.cpp calls BCryptGenRandom on
+     dnl Windows; modern mingw boost no longer pulls it in transitively, so link
+     dnl it explicitly. Lands in LIBS (after BOOST_LIBS on the link line) so ld
+     dnl resolves libboost_filesystem's BCrypt* references.
+     AC_CHECK_LIB([bcrypt],      [main],, AC_MSG_ERROR(lib missing))
 
      # -static is interpreted by libtool, where it has a different meaning.
      # In libtool-speak, it's -all-static.

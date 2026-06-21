@@ -347,6 +347,7 @@ std::string HelpMessage(HelpMessageMode mode)
     }
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     strUsage += HelpMessageOpt("-dbcache=<n>", strprintf(_("Set database cache size in megabytes (%d to %d, default: %d)"), nMinDbCache, nMaxDbCache, nDefaultDbCache));
+    strUsage += HelpMessageOpt("-evmdbcache=<n>", strprintf(_("Set EVM contract state database cache size in megabytes (8 to %d, default: %d). Higher values speed up sync of contract-heavy chains by keeping more of the state trie in memory"), nMaxDbCache, (int)(dev::eth::State::c_defaultEvmDbCacheBytes >> 20)));
     if (showDebug)
         strUsage += HelpMessageOpt("-feefilter", strprintf("Tell other nodes to filter invs to us by our mempool min fee (default: %u)", DEFAULT_FEEFILTER));
     strUsage += HelpMessageOpt("-loadblock=<file>", _("Imports blocks from external blk000??.dat file on startup"));
@@ -1524,7 +1525,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 const std::string dirQtum(qtumStateDir.string());
                 const dev::h256 hashDB(dev::sha3(dev::rlp("")));
                 dev::eth::BaseState existsQtumstate = fStatus ? dev::eth::BaseState::PreExisting : dev::eth::BaseState::Empty;
-                globalState = std::unique_ptr<QtumState>(new QtumState(dev::u256(0), QtumState::openDB(dirQtum, hashDB, dev::WithExisting::Trust), dirQtum, existsQtumstate));
+                int64_t nEvmDbCache = GetArg("-evmdbcache", dev::eth::State::c_defaultEvmDbCacheBytes >> 20);
+                nEvmDbCache = std::max<int64_t>(nEvmDbCache, 8);            // at least 8 MiB
+                nEvmDbCache = std::min<int64_t>(nEvmDbCache, nMaxDbCache);  // share the coins-db ceiling
+                globalState = std::unique_ptr<QtumState>(new QtumState(dev::u256(0), QtumState::openDB(dirQtum, hashDB, dev::WithExisting::Trust, nEvmDbCache << 20), dirQtum, existsQtumstate));
                 dev::eth::ChainParams cp((dev::eth::genesisInfo(dev::eth::Network::qtumMainNetwork)));
                 globalSealEngine = std::unique_ptr<dev::eth::SealEngineFace>(cp.createSealEngine());
 
