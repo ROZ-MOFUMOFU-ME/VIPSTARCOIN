@@ -193,12 +193,12 @@ bool CheckSyncCheckpoint(const uint256& hashBlock, const CBlockIndex* pindexPrev
 
     if (nHeight > pindexSync->nHeight)
     {
-        // Trace back to same height as sync-checkpoint
-        const CBlockIndex* pindex = pindexPrev;
-        while (pindex->nHeight > pindexSync->nHeight)
-            if (!(pindex = pindex->pprev))
-                return error("CheckSyncCheckpoint: pprev null - block index structure failure");
-        if (pindex->nHeight < pindexSync->nHeight || pindex->GetBlockHash() != hashSyncCheckpoint)
+        // Trace back to the sync-checkpoint height. Use GetAncestor() (skip-list,
+        // O(log n)) instead of walking pprev one block at a time (O(n)): with the
+        // sync-checkpoint stuck at genesis this walk cost ~960ms/block at height
+        // ~3.6M and grew with the chain, dominating IBD (O(height^2) overall).
+        const CBlockIndex* pindex = pindexPrev->GetAncestor(pindexSync->nHeight);
+        if (!pindex || pindex->GetBlockHash() != hashSyncCheckpoint)
             return false; // Only descendant of sync-checkpoint can pass check
     }
     if (nHeight == pindexSync->nHeight && hashBlock != hashSyncCheckpoint)
