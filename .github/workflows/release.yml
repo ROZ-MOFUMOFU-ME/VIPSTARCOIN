@@ -93,7 +93,9 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # macOS amd64 (macos-13) and arm64 (macos-14) — native build via Homebrew.
+  # macOS arm64 (macos-14) — native build via Homebrew.
+  # (amd64/macos-13 dropped: GitHub's free Intel runner never schedules, so the
+  # job sat queued indefinitely and stalled the release publish job.)
   # -------------------------------------------------------------------------
   macos:
     name: ${{ matrix.name }}
@@ -102,8 +104,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macos-amd64
-            runner: macos-13
           - name: macos-arm64
             runner: macos-14
     steps:
@@ -242,45 +242,6 @@ jobs:
         with:
           name: windows-amd64
           path: VIPSTARCOIN-windows-amd64.zip
-          if-no-files-found: warn
-
-  # -------------------------------------------------------------------------
-  # Windows ARM64 — EXPERIMENTAL best effort (no aarch64 mingw in depends).
-  # -------------------------------------------------------------------------
-  windows-arm64:
-    name: windows-arm64 (experimental)
-    runs-on: windows-11-arm
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANGARM64
-          update: true
-          install: >-
-            base-devel git autoconf automake libtool pkgconf
-            mingw-w64-clang-aarch64-toolchain
-            mingw-w64-clang-aarch64-boost
-            mingw-w64-clang-aarch64-libevent
-            mingw-w64-clang-aarch64-db
-      - name: Build (best effort)
-        shell: msys2 {0}
-        run: |
-          ./autogen.sh
-          ./configure --with-incompatible-bdb --without-gui --disable-reduce-exports
-          make ${MAKEJOBS}
-      - name: Stage and package
-        shell: msys2 {0}
-        run: |
-          OUT="VIPSTARCOIN-windows-arm64"; mkdir -p "$OUT"
-          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b.exe" "$OUT/" 2>/dev/null || true; done
-          tar -czf "${OUT}.tar.gz" "$OUT"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-arm64
-          path: VIPSTARCOIN-windows-arm64.tar.gz
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
