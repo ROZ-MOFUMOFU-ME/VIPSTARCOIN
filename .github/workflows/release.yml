@@ -47,10 +47,24 @@ jobs:
             libprotobuf-dev protobuf-compiler libqrencode-dev libminiupnpc-dev
       - name: Build Berkeley DB 4.8
         run: ./contrib/install_db4.sh "$(pwd)"
+      - name: Build minimal static libzmq
+        run: |
+          # Mining pools (NOMP) need ZMQ block notifications, which the official
+          # depends build shipped. Ubuntu's libzmq.a drags in krb5/pgm/norm/icu and
+          # can't be statically linked cleanly, so build a minimal libzmq from
+          # source (no libsodium/pgm/norm/gssapi) -> a dependency-free static
+          # libzmq.a that enables ZMQ without breaking the portable linking above.
+          git clone --depth 1 -b v4.3.5 https://github.com/zeromq/libzmq /tmp/libzmq
+          cd /tmp/libzmq
+          ./autogen.sh
+          ./configure --prefix="$HOME/zmqinst" --disable-shared --enable-static --without-libsodium
+          make ${MAKEJOBS}
+          make install
       - name: Build VIPSTARCOIN
         run: |
           ./autogen.sh
           export BDB_PREFIX="$PWD/db4"
+          export PKG_CONFIG_PATH="$HOME/zmqinst/lib/pkgconfig:$PKG_CONFIG_PATH"
           ./configure --with-gui=qt5 \
             BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" BDB_CFLAGS="-I${BDB_PREFIX}/include"
           # Statically link the version-volatile libraries (Boost, miniupnpc,
