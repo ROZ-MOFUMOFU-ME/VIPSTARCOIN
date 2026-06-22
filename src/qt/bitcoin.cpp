@@ -614,11 +614,15 @@ static void VIPSTARCOINTerminateHandler()
 
 static LONG WINAPI VIPSTARCOINSehFilter(EXCEPTION_POINTERS* info)
 {
-    char buf[192];
-    ::snprintf(buf, sizeof(buf), "Fatal error: SEH exception 0x%08lX at %p (not a C++ exception).",
-               (unsigned long)info->ExceptionRecord->ExceptionCode, (void*)info->ExceptionRecord->ExceptionAddress);
+    unsigned long code = (unsigned long)info->ExceptionRecord->ExceptionCode;
+    const char* kind = (code == 0x20474343UL) ? "uncaught C++ exception (GCC throw)" :
+                       (code == 0xC0000005UL) ? "access violation" : "SEH exception";
+    char buf[224];
+    ::snprintf(buf, sizeof(buf), "Fatal startup error: %s, code 0x%08lX at %p.",
+               kind, code, (void*)info->ExceptionRecord->ExceptionAddress);
     VIPSTARCOINReportCrash(buf);
-    return EXCEPTION_EXECUTE_HANDLER;
+    // Let the default handler run so WER writes a crash dump for offline analysis.
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 
 __attribute__((constructor(101)))
