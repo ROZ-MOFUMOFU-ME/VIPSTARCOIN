@@ -50,6 +50,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -Dprotobuf_BUILD_TESTS=OFF \
             -Dprotobuf_BUILD_SHARED_LIBS=OFF \
+            -Dprotobuf_WITH_ZLIB=OFF \
             -DCMAKE_CXX_STANDARD=14 \
             -DCMAKE_INSTALL_PREFIX="$HOME/pb21"
           ninja -C build
@@ -74,6 +75,8 @@ jobs:
             --with-qt-incdir="$QH" --with-qt-libdir="$QL" --with-qt-plugindir="$QP" \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
+            CPPFLAGS="-I$HOME/pb21/include" \
+            LDFLAGS="-L$HOME/pb21/lib" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make -j3
