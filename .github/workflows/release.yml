@@ -53,7 +53,17 @@ jobs:
           export BDB_PREFIX="$PWD/db4"
           ./configure --with-gui=qt5 \
             BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" BDB_CFLAGS="-I${BDB_PREFIX}/include"
-          make ${MAKEJOBS}
+          # Statically link the version-volatile libraries (Boost, miniupnpc,
+          # libevent; BDB 4.8 is already static) so VIPSTARCOINd/-cli/-tx run on
+          # any modern glibc -- e.g. Debian 13 (Boost 1.83) -- instead of needing
+          # the build host's exact .so versions. libcrypto/glibc/libstdc++ stay
+          # dynamic (stable, security-updated, present on every modern distro).
+          L=/usr/lib/$(gcc -print-multiarch)
+          make ${MAKEJOBS} \
+            BOOST_LIBS="-Wl,--start-group $L/libboost_system.a $L/libboost_filesystem.a $L/libboost_program_options.a $L/libboost_thread.a $L/libboost_chrono.a $L/libboost_random.a -Wl,--end-group" \
+            MINIUPNPC_LIBS="$L/libminiupnpc.a" \
+            EVENT_LIBS="$L/libevent.a" \
+            EVENT_PTHREADS_LIBS="$L/libevent_pthreads.a $L/libevent.a"
       - name: Stage and package
         run: |
           OUT="VIPSTARCOIN-${{ matrix.name }}"; mkdir -p "$OUT"
