@@ -67,21 +67,18 @@ jobs:
         run: |
           set -e
           unset JAVA_HOME
-          export PKG_CONFIG_PATH="$HOME/pb21/lib/pkgconfig:$PKG_CONFIG_PATH"
+          # Use pkg-config for Qt5/protobuf/openssl/libevent. WANT_PKGCONFIG opts
+          # MinGW back into pkg-config (configure.ac forces it off by default);
+          # modern MSYS2 ships Qt5*.pc and pb21 provides protobuf.pc, giving correct
+          # -L/-l for Qt instead of the fragile manual --with-qt-* paths that libtool
+          # could not resolve.
+          export WANT_PKGCONFIG=yes
+          export PKG_CONFIG_PATH="$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig:$PKG_CONFIG_PATH"
           export PATH="$HOME/pb21/bin:$PATH"
-          # configure.ac forces use_pkgconfig=no on MinGW, so Qt is found via
-          # manual --with-qt-* paths. Query them from qmake (robust to layout).
-          # qmake returns Windows-style paths (D:/...) that the configure test
-          # accepts but that don't reliably work as -L in the generated Makefile.
-          # Use the MSYS2 MINGW64 prefix paths, which the toolchain handles natively.
-          QH=/mingw64/include; QL=/mingw64/lib; QP=/mingw64/share/qt5/plugins
           ./autogen.sh
           ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
-            --with-qt-incdir="$QH" --with-qt-libdir="$QL" --with-qt-plugindir="$QP" \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
-            CPPFLAGS="-I$HOME/pb21/include" \
-            LDFLAGS="-L$HOME/pb21/lib -L/mingw64/lib" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make -j3

@@ -275,8 +275,10 @@ use_pkgconfig=yes
 case $host in
   *mingw*)
 
-     #pkgconfig does more harm than good with MinGW
-     use_pkgconfig=no
+     #pkgconfig was historically unreliable with MinGW; modern MSYS2 pkg-config
+     #is fine, so allow opting back in (needed for the Qt5 GUI build). Headless
+     #builds leave WANT_PKGCONFIG unset and keep the old behaviour.
+     if test "x$WANT_PKGCONFIG" = xyes; then use_pkgconfig=yes; else use_pkgconfig=no; fi
 
      TARGET_OS=windows
      AC_CHECK_LIB([mingwthrd],      [main],, AC_MSG_ERROR(lib missing))
