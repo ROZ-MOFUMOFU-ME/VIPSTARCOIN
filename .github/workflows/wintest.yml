@@ -96,7 +96,10 @@ jobs:
 
       - name: Package GUI + bundle DLLs
         run: |
-          set -e
+          # No 'set -e': packaging is best-effort. windeployqt exits non-zero on a
+          # missing optional ANGLE DLL, and ldd on a Qt DLL with an unresolved
+          # optional dep returns non-zero under the shell's pipefail -- neither is
+          # fatal (the Qt DLLs/plugins and runtime DLLs are still bundled).
           OUT="VIPSTARCOIN-windows-amd64-gui"; mkdir -p "$OUT"
           for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b.exe" "$OUT/" 2>/dev/null || true; done
           cp src/qt/VIPSTARCOIN-qt.exe "$OUT/"
