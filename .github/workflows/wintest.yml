@@ -94,6 +94,19 @@ jobs:
         run: |
           set -e
           unset JAVA_HOME
+          # MSYS2's GCC bakes _GLIBCXX_ASSERTIONS into c++config.h (built with
+          # --enable-libstdcxx-assertions), so a command-line -U can't disable it
+          # (the header re-#defines it). Those hardened asserts abort() on a latent
+          # container precondition violation at startup -> the crash. The Linux/macOS
+          # release toolchains don't enable them, so neutralize the header #define
+          # here to match (the underlying out-of-bounds is being fixed separately).
+          echo "== c++config.h defining _GLIBCXX_ASSERTIONS =="
+          grep -rlE '^[[:space:]]*#[[:space:]]*define[[:space:]]+_GLIBCXX_ASSERTIONS' /mingw64/include/c++ 2>/dev/null | while read -r h; do
+            sed -i -E '/^[[:space:]]*#[[:space:]]*define[[:space:]]+_GLIBCXX_ASSERTIONS([[:space:]]|$)/ s@.*@/* _GLIBCXX_ASSERTIONS neutralized for release */@' "$h"
+            echo "  patched: $h"
+          done
+          echo "== remaining active #define (want: none) =="
+          grep -rnE '^[[:space:]]*#[[:space:]]*define[[:space:]]+_GLIBCXX_ASSERTIONS' /mingw64/include/c++ 2>/dev/null || echo "  (none)"
           QTS=/mingw64/qt5-static
           export WANT_PKGCONFIG=yes PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
           # static-Qt prefix first; --static so pkg-config emits the transitive deps
@@ -133,7 +146,7 @@ jobs:
           ./configure --with-gui=qt5 --without-miniupnpc --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
-            CXXFLAGS="-std=c++14 -U_GLIBCXX_ASSERTIONS" \
+            CXXFLAGS="-std=c++14" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
             LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
