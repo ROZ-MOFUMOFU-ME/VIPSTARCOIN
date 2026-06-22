@@ -38,6 +38,7 @@
 
 #include <stdint.h>
 #include <exception>
+#include <cstdio>
 
 #include <boost/filesystem/operations.hpp>
 #include <boost/thread.hpp>
@@ -572,35 +573,64 @@ void BitcoinApplication::restoreWallet()
 
 #ifndef BITCOIN_QT_TEST
 #if defined(WIN32)
-// The Windows GUI has no console, so an unhandled C++ exception at startup is
-// otherwise a silent abort() inside libstdc++'s verbose terminate handler (the
-// crash seen as a STATUS_FATAL_APP_EXIT in libstdc++-6). Install a terminate
-// handler that surfaces the exception text in a message box so a blind crash
-// becomes diagnosable.
+// The shipped Windows GUI dies at startup with STATUS_FATAL_APP_EXIT (abort via
+// the C++ verbose terminate handler) — an unhandled exception with no console to
+// print it. It is thrown during static initialization, *before* main(), so the
+// handler is installed from an early constructor (priority 101, before normal C++
+// global ctors) and the message is written to %TEMP%\VIPSTARCOIN-qt-crash.txt as
+// well as shown in a message box, so the throw is captured either way. A
+// SetUnhandledExceptionFilter backstop records non-C++ fatal errors too.
 static std::terminate_handler g_prevTerminateHandler = nullptr;
+static bool g_crashReported = false;
+
+static void VIPSTARCOINReportCrash(const std::string& message)
+{
+    if (g_crashReported) return; // first reporter wins (terminate before abort's SEH)
+    g_crashReported = true;
+    char tmp[MAX_PATH] = {0};
+    DWORD n = ::GetTempPathA(MAX_PATH, tmp);
+    std::string file = (n ? std::string(tmp, n) : std::string()) + "VIPSTARCOIN-qt-crash.txt";
+    if (FILE* f = ::fopen(file.c_str(), "w")) { ::fputs(message.c_str(), f); ::fclose(f); }
+    std::string box = message + "\n\n(also saved to " + file + ")";
+    ::MessageBoxA(nullptr, box.c_str(), "VIPSTARCOIN-qt: fatal startup error", MB_OK | MB_ICONERROR);
+}
+
 static void VIPSTARCOINTerminateHandler()
 {
-    std::string message = "Unhandled exception: std::terminate() was called.";
+    std::string message = "Unhandled C++ exception (std::terminate, no active exception object).";
     if (std::exception_ptr eptr = std::current_exception()) {
         try {
             std::rethrow_exception(eptr);
         } catch (const std::exception& e) {
-            message = std::string("Unhandled exception:\n\n") + e.what();
+            message = std::string("Unhandled C++ exception:\n\n") + e.what();
         } catch (...) {
-            message = "Unhandled non-standard exception.";
+            message = "Unhandled non-standard C++ exception.";
         }
     }
-    ::MessageBoxA(nullptr, message.c_str(), "VIPSTARCOIN-qt: fatal startup error", MB_OK | MB_ICONERROR);
+    VIPSTARCOINReportCrash(message);
     if (g_prevTerminateHandler) g_prevTerminateHandler();
-    abort();
+    ::abort();
+}
+
+static LONG WINAPI VIPSTARCOINSehFilter(EXCEPTION_POINTERS* info)
+{
+    char buf[192];
+    ::snprintf(buf, sizeof(buf), "Fatal error: SEH exception 0x%08lX at %p (not a C++ exception).",
+               (unsigned long)info->ExceptionRecord->ExceptionCode, (void*)info->ExceptionRecord->ExceptionAddress);
+    VIPSTARCOINReportCrash(buf);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+__attribute__((constructor(101)))
+static void VIPSTARCOINInstallCrashHandlers()
+{
+    g_prevTerminateHandler = std::set_terminate(VIPSTARCOINTerminateHandler);
+    ::SetUnhandledExceptionFilter(VIPSTARCOINSehFilter);
 }
 #endif
 
 int main(int argc, char *argv[])
 {
-#if defined(WIN32)
-    g_prevTerminateHandler = std::set_terminate(VIPSTARCOINTerminateHandler);
-#endif
     SetupEnvironment();
 
     /// 1. Parse command-line options. These take precedence over anything else.
