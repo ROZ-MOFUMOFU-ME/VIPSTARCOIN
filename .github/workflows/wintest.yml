@@ -62,8 +62,16 @@ jobs:
           unset JAVA_HOME
           export PKG_CONFIG_PATH="$HOME/pb21/lib/pkgconfig:$PKG_CONFIG_PATH"
           export PATH="$HOME/pb21/bin:$PATH"
+          # configure.ac forces use_pkgconfig=no on MinGW, so Qt is found via
+          # manual --with-qt-* paths. Query them from qmake (robust to layout).
+          QMAKE=$(command -v qmake || command -v qmake-qt5)
+          QH=$("$QMAKE" -query QT_INSTALL_HEADERS)
+          QL=$("$QMAKE" -query QT_INSTALL_LIBS)
+          QP=$("$QMAKE" -query QT_INSTALL_PLUGINS)
+          echo "Qt: headers=$QH libs=$QL plugins=$QP"
           ./autogen.sh
           ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
+            --with-qt-incdir="$QH" --with-qt-libdir="$QL" --with-qt-plugindir="$QP" \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
