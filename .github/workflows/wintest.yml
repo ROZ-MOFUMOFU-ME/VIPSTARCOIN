@@ -73,6 +73,11 @@ jobs:
           # -L/-l for Qt instead of the fragile manual --with-qt-* paths that libtool
           # could not resolve.
           export WANT_PKGCONFIG=yes
+          # pkg-config omits -L for "system" dirs like /mingw64/lib by default, so
+          # QT_LIBS came out as bare -lQt5Core and libtool's link couldn't find them.
+          # Force the -L to be emitted.
+          export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+          export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
           export PKG_CONFIG_PATH="$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig:$PKG_CONFIG_PATH"
           export PATH="$HOME/pb21/bin:$PATH"
           ./autogen.sh
