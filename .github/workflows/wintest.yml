@@ -70,7 +70,10 @@ jobs:
           # all-static GUI link fails with "cannot find -lqrencode". Build a static
           # libqrencode.a from source (no tools -> no libpng dep).
           git clone --depth 1 -b v4.1.1 https://github.com/fukuchi/libqrencode "$HOME/qrsrc"
+          # qrencode 4.1.1's cmake_minimum_required predates 3.5, which CMake 4.x
+          # refuses; the policy-min flag lets it configure anyway.
           cmake -G Ninja -S "$HOME/qrsrc" -B "$HOME/qrsrc/build" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
             -DWITH_TOOLS=NO -DWITH_TESTS=NO -DCMAKE_INSTALL_PREFIX="$HOME/qr"
           ninja -C "$HOME/qrsrc/build" && ninja -C "$HOME/qrsrc/build" install
