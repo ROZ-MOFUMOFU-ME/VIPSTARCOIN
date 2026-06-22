@@ -76,7 +76,7 @@ jobs:
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
             CPPFLAGS="-I$HOME/pb21/include" \
-            LDFLAGS="-L$HOME/pb21/lib" \
+            LDFLAGS="-L$HOME/pb21/lib -L$QL" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make -j3
