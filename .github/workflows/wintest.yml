@@ -41,6 +41,12 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-zlib
 
+      - name: Diagnose Qt libs
+        run: |
+          echo "== qmake =="; qmake -query | grep -iE "INSTALL_LIBS|INSTALL_HEADERS|INSTALL_PLUGINS|INSTALL_BINS" || true
+          echo "== /mingw64/lib Qt5 import libs =="; ls -la /mingw64/lib/libQt5Core* /mingw64/lib/libQt5Widgets* /mingw64/lib/libqrencode* 2>&1 || true
+          echo "== /mingw64/bin Qt5 DLLs =="; ls -la /mingw64/bin/Qt5Core.dll 2>&1 || true
+          echo "== find any libQt5Core* / Qt5Core* =="; find /mingw64 -iname 'libQt5Core*' -o -iname 'Qt5Core.dll' 2>/dev/null || true
       - name: Build protobuf 3.21 (C++14, static)
         run: |
           set -e
@@ -65,18 +71,17 @@ jobs:
           export PATH="$HOME/pb21/bin:$PATH"
           # configure.ac forces use_pkgconfig=no on MinGW, so Qt is found via
           # manual --with-qt-* paths. Query them from qmake (robust to layout).
-          QMAKE=$(command -v qmake || command -v qmake-qt5)
-          QH=$("$QMAKE" -query QT_INSTALL_HEADERS)
-          QL=$("$QMAKE" -query QT_INSTALL_LIBS)
-          QP=$("$QMAKE" -query QT_INSTALL_PLUGINS)
-          echo "Qt: headers=$QH libs=$QL plugins=$QP"
+          # qmake returns Windows-style paths (D:/...) that the configure test
+          # accepts but that don't reliably work as -L in the generated Makefile.
+          # Use the MSYS2 MINGW64 prefix paths, which the toolchain handles natively.
+          QH=/mingw64/include; QL=/mingw64/lib; QP=/mingw64/share/qt5/plugins
           ./autogen.sh
           ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
             --with-qt-incdir="$QH" --with-qt-libdir="$QL" --with-qt-plugindir="$QP" \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
             CPPFLAGS="-I$HOME/pb21/include" \
-            LDFLAGS="-L$HOME/pb21/lib -L$QL" \
+            LDFLAGS="-L$HOME/pb21/lib -L/mingw64/lib" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make -j3
