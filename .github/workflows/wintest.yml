@@ -91,6 +91,7 @@ jobs:
           export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -ldwrite -ld2d1 -lwtsapi32 -lwinspool -lshlwapi -ldwmapi -Wl,--end-group"
           echo "QTPLATFORM_LIBS=$QTPLATFORM_LIBS"
           ./autogen.sh
+          CFG_RC=0
           ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
@@ -99,7 +100,15 @@ jobs:
             MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
             LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
             LDFLAGS="-static -static-libgcc -static-libstdc++" \
-            BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
+            BDB_LIBS="-ldb_cxx" BDB_CFLAGS="" || CFG_RC=$?
+          if [ "$CFG_RC" != 0 ]; then
+            set +e
+            echo "=== configure FAILED (rc=$CFG_RC). config.log -lqwindows link block: ==="
+            sed -n '/static Qt plugins: -lqwindows/,/\$? = /p' config.log | tail -120
+            echo "=== cannot-find-lib / undefined refs anywhere in config.log: ==="
+            grep -nE "cannot find -l|undefined reference|ld returned 1|undefined symbol" config.log | tail -50
+            exit 1
+          fi
           # keep the MinGW default LIBTOOL_APP_LDFLAGS=-all-static (static Qt has .a now)
           make -j3
 
