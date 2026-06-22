@@ -111,9 +111,17 @@ jobs:
           # OpenGL at runtime, so tolerate that exit instead of failing the step.
           "$WDQ" --release --compiler-runtime --no-opengl-sw "$OUT/VIPSTARCOIN-qt.exe" \
             || echo "windeployqt returned non-zero (optional GL DLL missing); Qt DLLs deployed, continuing"
-          # Copy any remaining MinGW/runtime DLLs the binaries need (transitive).
+          # windeployqt can bail (on the missing optional ANGLE DLL) before it copies
+          # the Qt platform plugin, without which the GUI cannot start. Copy the
+          # essential plugins by hand so the package is always launchable.
+          QTP=/mingw64/share/qt5/plugins
+          mkdir -p "$OUT/platforms" "$OUT/styles" "$OUT/imageformats"
+          cp "$QTP/platforms/qwindows.dll" "$OUT/platforms/" 2>/dev/null
+          cp "$QTP/styles/qwindowsvistastyle.dll" "$OUT/styles/" 2>/dev/null
+          cp "$QTP"/imageformats/q*.dll "$OUT/imageformats/" 2>/dev/null
+          # Copy any remaining MinGW/runtime DLLs the binaries + plugins need.
           for pass in 1 2 3; do
-            for f in "$OUT"/*.exe "$OUT"/*.dll; do
+            for f in "$OUT"/*.exe "$OUT"/*.dll "$OUT"/platforms/*.dll "$OUT"/styles/*.dll "$OUT"/imageformats/*.dll; do
               [ -e "$f" ] || continue
               ldd "$f" 2>/dev/null | grep -i '/mingw64/bin/' | awk '{print $3}' | while read -r d; do
                 cp -n "$d" "$OUT/" 2>/dev/null || true
