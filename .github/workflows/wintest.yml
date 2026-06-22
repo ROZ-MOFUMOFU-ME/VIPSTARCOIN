@@ -46,6 +46,9 @@ jobs:
           echo "== plugin dirs =="; find /mingw64/qt5-static -type d -name platforms 2>/dev/null
           echo "== pkg-config --static --libs Qt5* =="; PKG_CONFIG_PATH=/mingw64/qt5-static/lib/pkgconfig PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 pkg-config --static --libs Qt5Core Qt5Gui Qt5Widgets Qt5Network 2>&1 | head -c 2000; echo
           echo "== is Qt5Gui.pc static? (has Requires.private) =="; grep -iE "Requires|Libs.private" /mingw64/qt5-static/lib/pkgconfig/Qt5Gui.pc 2>&1 | head -3
+          echo "== split *Support.a libs (Qt5PlatformSupport.pc is gone in Qt>=5.8) =="; ls /mingw64/qt5-static/lib/libQt5*Support.a 2>/dev/null
+          echo "== qwindows.prl (authoritative static dep list for the platform plugin) =="; cat /mingw64/qt5-static/share/qt5/plugins/platforms/qwindows.prl 2>/dev/null
+          echo "== bundled font/image static libs =="; ls /mingw64/qt5-static/lib/ 2>/dev/null | grep -iE 'freetype|harfbuzz|png|jpeg'
           true
 
       - name: Build protobuf 3.21 (C++14, static)
@@ -69,9 +72,25 @@ jobs:
           export PKG_CONFIG="pkg-config --static"
           export PKG_CONFIG_PATH="$QTS/lib/pkgconfig:$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig"
           export PATH="$QTS/bin:$HOME/pb21/bin:$PATH"
+          # Qt>=5.8 dropped the aggregate Qt5PlatformSupport.pc and split it into
+          # private *Support static libs that the static qwindows plugin needs.
+          # configure's PKG_CHECK_MODULES([Qt5PlatformSupport]) is fatal when the
+          # .pc is absent, so pre-set QTPLATFORM_{CFLAGS,LIBS}: PKG_CHECK_MODULES
+          # then uses them verbatim and never calls pkg-config. Glob whatever
+          # *Support.a MSYS2 ships (+ bundled freetype) and wrap in a linker group
+          # so static link order among them is moot.
+          SUPP=""
+          for f in "$QTS"/lib/libQt5*Support.a "$QTS"/lib/libqtfreetype.a; do
+            [ -e "$f" ] || continue
+            b=$(basename "$f" .a); SUPP="$SUPP -l${b#lib}"
+          done
+          export QTPLATFORM_CFLAGS=" "
+          export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -Wl,--end-group"
+          echo "QTPLATFORM_LIBS=$QTPLATFORM_LIBS"
           ./autogen.sh
           ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
+            --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
             CXXFLAGS="-std=c++14" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
