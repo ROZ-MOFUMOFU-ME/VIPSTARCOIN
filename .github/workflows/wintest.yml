@@ -80,6 +80,8 @@ jobs:
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             CXXFLAGS="-std=c++14" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
+            MOC=/mingw64/bin/moc UIC=/mingw64/bin/uic RCC=/mingw64/bin/rcc \
+            LRELEASE=/mingw64/bin/lrelease-qt5 LUPDATE=/mingw64/bin/lupdate-qt5 \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
           make -j3
 
