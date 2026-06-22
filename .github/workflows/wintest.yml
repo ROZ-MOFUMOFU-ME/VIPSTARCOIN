@@ -79,6 +79,17 @@ jobs:
           ninja -C "$HOME/qrsrc/build" && ninja -C "$HOME/qrsrc/build" install
           ls -l "$HOME/qr/lib/libqrencode.a" "$HOME/qr/include/qrencode.h"
 
+      - name: Build Berkeley DB 4.8 (static, MinGW)
+        run: |
+          set -e
+          # MSYS2 ships Berkeley DB as a DLL only (libdb_cxx-6.2.dll), which kept the
+          # GUI link dynamic and dragged in libgcc/libstdc++/libwinpthread DLLs too.
+          # Build a static BDB 4.8 (the script already handles GCC14 + config.guess);
+          # --enable-mingw makes it build for Windows. Result: libdb_cxx-4.8.a, so the
+          # exe is truly self-contained and the wallet uses the portable 4.8 format.
+          ./contrib/install_db4.sh "$PWD" --enable-mingw
+          ls -l "$PWD/db4/lib/libdb_cxx-4.8.a"
+
       - name: Build VIPSTARCOIN (static Qt5 GUI -> single exe)
         run: |
           set -e
@@ -119,7 +130,7 @@ jobs:
           export QR_LIBS="-L$HOME/qr/lib -lqrencode"
           ./autogen.sh
           CFG_RC=0
-          ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
+          ./configure --with-gui=qt5 --without-miniupnpc --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
             CXXFLAGS="-std=c++14" \
@@ -127,7 +138,7 @@ jobs:
             MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
             LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
             LDFLAGS="-static -static-libgcc -static-libstdc++" \
-            BDB_LIBS="-ldb_cxx" BDB_CFLAGS="" || CFG_RC=$?
+            BDB_LIBS="-L$PWD/db4/lib -ldb_cxx-4.8" BDB_CFLAGS="-I$PWD/db4/include" || CFG_RC=$?
           if [ "$CFG_RC" != 0 ]; then
             set +e
             echo "=== configure FAILED (rc=$CFG_RC). config.log -lqwindows link block: ==="
