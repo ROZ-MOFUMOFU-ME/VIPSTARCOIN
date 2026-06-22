@@ -37,6 +37,7 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-zstd
 
       - name: Diagnose static Qt
         run: |
@@ -72,6 +73,12 @@ jobs:
           export PKG_CONFIG="pkg-config --static"
           export PKG_CONFIG_PATH="$QTS/lib/pkgconfig:$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig"
           export PATH="$QTS/bin:$HOME/pb21/bin:$PATH"
+          # MSYS2's qt5-static .pc files reference zlib/zstd as `-l:libz` / `-l:libzstd`
+          # (exact filenames that don't exist — only libz.a / libzstd.a do), so the
+          # static link dies with "cannot find -l:libz". Rewrite to plain -lz/-lzstd
+          # (zstd first so the libz rule can't clip `-l:libzstd`).
+          sed -i -E 's/-l:libzstd(\.a)?/-lzstd/g; s/-l:libz(\.a)?/-lz/g' "$QTS"/lib/pkgconfig/*.pc
+          echo "== zlib/zstd refs after patch =="; grep -hoE -- '-l(:lib)?z(std)?(\.a)?' "$QTS"/lib/pkgconfig/*.pc | sort -u
           # Qt>=5.8 dropped the aggregate Qt5PlatformSupport.pc and split it into
           # private *Support static libs that the static qwindows plugin needs.
           # configure's PKG_CHECK_MODULES([Qt5PlatformSupport]) is fatal when the
