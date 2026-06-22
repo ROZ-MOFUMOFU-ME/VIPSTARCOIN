@@ -63,6 +63,19 @@ jobs:
             -DCMAKE_CXX_STANDARD=14 -DCMAKE_INSTALL_PREFIX="$HOME/pb21"
           ninja -C build && ninja -C build install
 
+      - name: Build qrencode 4.1.1 (static)
+        run: |
+          set -e
+          # MSYS2 ships qrencode as an import lib only (no libqrencode.a), so the
+          # all-static GUI link fails with "cannot find -lqrencode". Build a static
+          # libqrencode.a from source (no tools -> no libpng dep).
+          git clone --depth 1 -b v4.1.1 https://github.com/fukuchi/libqrencode "$HOME/qrsrc"
+          cmake -G Ninja -S "$HOME/qrsrc" -B "$HOME/qrsrc/build" \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWITH_TOOLS=NO -DWITH_TESTS=NO -DCMAKE_INSTALL_PREFIX="$HOME/qr"
+          ninja -C "$HOME/qrsrc/build" && ninja -C "$HOME/qrsrc/build" install
+          ls -l "$HOME/qr/lib/libqrencode.a" "$HOME/qr/include/qrencode.h"
+
       - name: Build VIPSTARCOIN (static Qt5 GUI -> single exe)
         run: |
           set -e
@@ -97,6 +110,10 @@ jobs:
           # All deps live inside one --start-group so single-pass link order is moot.
           export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -ldwrite -ld2d1 -lwtsapi32 -lwinspool -lshlwapi -ldwmapi -Wl,--end-group"
           echo "QTPLATFORM_LIBS=$QTPLATFORM_LIBS"
+          # point QR detection at our static libqrencode.a (PKG_CHECK_MODULES uses
+          # these pre-set vars verbatim and skips the system import-only .pc).
+          export QR_CFLAGS="-I$HOME/qr/include"
+          export QR_LIBS="-L$HOME/qr/lib -lqrencode"
           ./autogen.sh
           CFG_RC=0
           ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
