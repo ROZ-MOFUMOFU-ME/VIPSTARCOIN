@@ -88,7 +88,11 @@ jobs:
             MOC=/mingw64/bin/moc UIC=/mingw64/bin/uic RCC=/mingw64/bin/rcc \
             LRELEASE=/mingw64/bin/lrelease-qt5 LUPDATE=/mingw64/bin/lupdate-qt5 \
             BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
-          make -j3
+          # configure.ac forces LIBTOOL_APP_LDFLAGS=-all-static on MinGW, which
+          # makes libtool link fully static and look for libQt5Core.a etc. -- but
+          # MSYS2 ships Qt5 as DLLs only (no static libs). Override to empty so the
+          # GUI links Qt dynamically; the DLLs are bundled in the packaging step.
+          make -j3 LIBTOOL_APP_LDFLAGS=
 
       - name: Package GUI + bundle DLLs
         run: |
