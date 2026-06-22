@@ -133,7 +133,7 @@ jobs:
           ./configure --with-gui=qt5 --without-miniupnpc --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
-            CXXFLAGS="-std=c++14" \
+            CXXFLAGS="-std=c++14 -U_GLIBCXX_ASSERTIONS" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
             LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
