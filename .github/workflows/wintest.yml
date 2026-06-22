@@ -40,12 +40,13 @@ jobs:
 
       - name: Diagnose static Qt
         run: |
-          echo "== qt5-static prefix =="; ls -d /mingw64/qt5-static 2>&1
-          echo "== tools =="; ls /mingw64/qt5-static/bin/moc.exe /mingw64/qt5-static/bin/qmake.exe 2>&1
-          echo "== static libs =="; ls /mingw64/qt5-static/lib/libQt5Core.a /mingw64/qt5-static/lib/libQt5Widgets.a 2>&1
-          echo "== pkgconfig =="; ls /mingw64/qt5-static/lib/pkgconfig/Qt5Core.pc 2>&1
-          echo "== platform plugin (static) =="; ls /mingw64/qt5-static/plugins/platforms/ 2>&1
-          echo "== Qt5Core.pc --static --libs =="; PKG_CONFIG_PATH=/mingw64/qt5-static/lib/pkgconfig PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 pkg-config --static --libs Qt5Core Qt5Gui Qt5Widgets Qt5Network 2>&1 | head -c 1500; echo
+          set +e +o pipefail
+          echo "== qmake QT_INSTALL_PLUGINS / PREFIX =="; /mingw64/qt5-static/bin/qmake -query | grep -iE "INSTALL_PLUGINS|INSTALL_PREFIX|INSTALL_LIBS"
+          echo "== static platform plugin (libqwindows.a) =="; find /mingw64/qt5-static -iname 'libqwindows*' 2>/dev/null
+          echo "== plugin dirs =="; find /mingw64/qt5-static -type d -name platforms 2>/dev/null
+          echo "== pkg-config --static --libs Qt5* =="; PKG_CONFIG_PATH=/mingw64/qt5-static/lib/pkgconfig PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 pkg-config --static --libs Qt5Core Qt5Gui Qt5Widgets Qt5Network 2>&1 | head -c 2000; echo
+          echo "== is Qt5Gui.pc static? (has Requires.private) =="; grep -iE "Requires|Libs.private" /mingw64/qt5-static/lib/pkgconfig/Qt5Gui.pc 2>&1 | head -3
+          true
 
       - name: Build protobuf 3.21 (C++14, static)
         run: |
