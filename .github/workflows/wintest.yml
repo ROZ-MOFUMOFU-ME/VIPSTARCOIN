@@ -1,0 +1,98 @@
+name: WinGUIStatic
+
+# Iteration harness for a fully-static single-exe Windows GUI (workflow_dispatch
+# only). Uses MSYS2's static Qt5 (mingw-w64-x86_64-qt5-static) + -all-static so
+# VIPSTARCOIN-qt.exe ships as a standalone exe with no bundled DLLs/plugins.
+# Folded into release.yml once green, then this file is deleted.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-amd64-static:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel git autoconf automake libtool pkgconf zip
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-libevent
+            mingw-w64-x86_64-db
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-qrencode
+            mingw-w64-x86_64-qt5-static
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-zlib
+
+      - name: Diagnose static Qt
+        run: |
+          echo "== qt5-static prefix =="; ls -d /mingw64/qt5-static 2>&1
+          echo "== tools =="; ls /mingw64/qt5-static/bin/moc.exe /mingw64/qt5-static/bin/qmake.exe 2>&1
+          echo "== static libs =="; ls /mingw64/qt5-static/lib/libQt5Core.a /mingw64/qt5-static/lib/libQt5Widgets.a 2>&1
+          echo "== pkgconfig =="; ls /mingw64/qt5-static/lib/pkgconfig/Qt5Core.pc 2>&1
+          echo "== platform plugin (static) =="; ls /mingw64/qt5-static/plugins/platforms/ 2>&1
+          echo "== Qt5Core.pc --static --libs =="; PKG_CONFIG_PATH=/mingw64/qt5-static/lib/pkgconfig PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 pkg-config --static --libs Qt5Core Qt5Gui Qt5Widgets Qt5Network 2>&1 | head -c 1500; echo
+
+      - name: Build protobuf 3.21 (C++14, static)
+        run: |
+          set -e
+          git clone --depth 1 -b v3.21.12 https://github.com/protocolbuffers/protobuf "$HOME/pbsrc"
+          cd "$HOME/pbsrc"
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release -Dprotobuf_BUILD_TESTS=OFF \
+            -Dprotobuf_BUILD_SHARED_LIBS=OFF -Dprotobuf_WITH_ZLIB=OFF \
+            -DCMAKE_CXX_STANDARD=14 -DCMAKE_INSTALL_PREFIX="$HOME/pb21"
+          ninja -C build && ninja -C build install
+
+      - name: Build VIPSTARCOIN (static Qt5 GUI -> single exe)
+        run: |
+          set -e
+          unset JAVA_HOME
+          QTS=/mingw64/qt5-static
+          export WANT_PKGCONFIG=yes PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+          # static-Qt prefix first; --static so pkg-config emits the transitive deps
+          export PKG_CONFIG="pkg-config --static"
+          export PKG_CONFIG_PATH="$QTS/lib/pkgconfig:$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig"
+          export PATH="$QTS/bin:$HOME/pb21/bin:$PATH"
+          ./autogen.sh
+          ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
+            --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
+            CXXFLAGS="-std=c++14" \
+            PROTOC="$HOME/pb21/bin/protoc.exe" \
+            MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
+            LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
+            LDFLAGS="-static -static-libgcc -static-libstdc++" \
+            BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
+          # keep the MinGW default LIBTOOL_APP_LDFLAGS=-all-static (static Qt has .a now)
+          make -j3
+
+      - name: Package single exe + verify no DLL deps
+        run: |
+          set +e +o pipefail
+          OUT="VIPSTARCOIN-windows-amd64-static"; mkdir -p "$OUT"
+          for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b.exe" "$OUT/" 2>/dev/null; done
+          cp src/qt/VIPSTARCOIN-qt.exe "$OUT/"
+          echo "=== sizes ==="; ls -lh "$OUT"
+          echo "=== ldd VIPSTARCOIN-qt.exe (want: NO /mingw64 DLLs) ==="
+          ldd "$OUT/VIPSTARCOIN-qt.exe" | grep -i mingw64 && echo "  ^ still has DLL deps" || echo "  (fully static — no mingw64 DLL deps)"
+          zip -r "${OUT}.zip" "$OUT" >/dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64-static
+          path: VIPSTARCOIN-windows-amd64-static.zip
+          if-no-files-found: warn
