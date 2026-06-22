@@ -339,6 +339,7 @@ public:
 
     void read(char* pch, size_t nSize)
     {
+        if (nSize == 0) return;
         // Read from the beginning of the buffer
         unsigned int nReadPosNext = nReadPos + nSize;
         if (nReadPosNext >= vch.size())
