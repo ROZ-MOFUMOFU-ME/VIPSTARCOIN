@@ -37,6 +37,7 @@
 #endif
 
 #include <stdint.h>
+#include <exception>
 
 #include <boost/filesystem/operations.hpp>
 #include <boost/thread.hpp>
@@ -570,8 +571,36 @@ void BitcoinApplication::restoreWallet()
 }
 
 #ifndef BITCOIN_QT_TEST
+#if defined(WIN32)
+// The Windows GUI has no console, so an unhandled C++ exception at startup is
+// otherwise a silent abort() inside libstdc++'s verbose terminate handler (the
+// crash seen as a STATUS_FATAL_APP_EXIT in libstdc++-6). Install a terminate
+// handler that surfaces the exception text in a message box so a blind crash
+// becomes diagnosable.
+static std::terminate_handler g_prevTerminateHandler = nullptr;
+static void VIPSTARCOINTerminateHandler()
+{
+    std::string message = "Unhandled exception: std::terminate() was called.";
+    if (std::exception_ptr eptr = std::current_exception()) {
+        try {
+            std::rethrow_exception(eptr);
+        } catch (const std::exception& e) {
+            message = std::string("Unhandled exception:\n\n") + e.what();
+        } catch (...) {
+            message = "Unhandled non-standard exception.";
+        }
+    }
+    ::MessageBoxA(nullptr, message.c_str(), "VIPSTARCOIN-qt: fatal startup error", MB_OK | MB_ICONERROR);
+    if (g_prevTerminateHandler) g_prevTerminateHandler();
+    abort();
+}
+#endif
+
 int main(int argc, char *argv[])
 {
+#if defined(WIN32)
+    g_prevTerminateHandler = std::set_terminate(VIPSTARCOINTerminateHandler);
+#endif
     SetupEnvironment();
 
     /// 1. Parse command-line options. These take precedence over anything else.
