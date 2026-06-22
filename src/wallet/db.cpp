@@ -89,8 +89,14 @@ bool CDBEnv::Open(const boost::filesystem::path& pathIn)
     dbenv->set_cachesize(0, 0x100000, 1); // 1 MiB should be enough for just the wallet
     dbenv->set_lg_bsize(0x10000);
     dbenv->set_lg_max(1048576);
-    dbenv->set_lk_max_locks(40000);
-    dbenv->set_lk_max_objects(40000);
+    dbenv->set_lk_max_locks(537000);
+    dbenv->set_lk_max_objects(537000);
+    // Run BDB's deadlock detector on every lock conflict. Without it, the GUI
+    // thread (wallet model) and the validation thread (AddToWallet during sync)
+    // can deadlock on the wallet DB -> hang (AppHang) or a failed db->open that
+    // throws an uncaught "can't open database" and crashes. DB_LOCK_DEFAULT lets
+    // BDB break the cycle by aborting one request instead.
+    dbenv->set_lk_detect(DB_LOCK_DEFAULT);
     dbenv->set_errfile(fopen(pathErrorFile.string().c_str(), "a")); /// debug
     dbenv->set_flags(DB_AUTO_COMMIT, 1);
     dbenv->set_flags(DB_TXN_WRITE_NOSYNC, 1);
@@ -277,6 +283,7 @@ CDB::CDB(const std::string& strFilename, const char* pszMode, bool fFlushOnClose
                             0);
 
             if (ret != 0) {
+                LogPrintf("CDB: db->open(%s) failed: ret=%d (%s)\n", strFile, ret, DbEnv::strerror(ret));
                 delete pdb;
                 pdb = NULL;
                 --bitdb.mapFileUseCount[strFile];
