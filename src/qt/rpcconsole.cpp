@@ -194,7 +194,7 @@ bool RPCConsole::RPCParseCommandLine(std::string &strResult, const std::string &
     };
 
     std::string strCommandTerminated = strCommand;
-    if (strCommandTerminated.back() != '\n')
+    if (strCommandTerminated.empty() || strCommandTerminated.back() != '\n')
         strCommandTerminated += "\n";
     for (chpos = 0; chpos < strCommandTerminated.size(); ++chpos)
     {
