@@ -715,10 +715,13 @@ boost::filesystem::path static GetAutostartDir()
 
 boost::filesystem::path static GetAutostartFilePath()
 {
+    // XDG autostart wants .desktop files; a .lnk would just be ignored. The
+    // mainnet branch always wrote .desktop; the testnet/regtest branch was a
+    // copy-paste from the Windows side and silently no-op'd on Linux.
     std::string chain = ChainNameFromCommandLine();
     if (chain == CBaseChainParams::MAIN)
         return GetAutostartDir() / "VIPSTARCOIN.desktop";
-    return GetAutostartDir() / strprintf("VIPSTARCOIN-%s.lnk", chain);
+    return GetAutostartDir() / strprintf("VIPSTARCOIN-%s.desktop", chain);
 }
 
 bool GetStartOnSystemStartup()
