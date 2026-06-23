@@ -171,6 +171,10 @@ bool RPCConsole::RPCParseCommandLine(std::string &strResult, const std::string &
     std::vector<std::pair<size_t, size_t>> filter_ranges;
 
     auto add_to_current_stack = [&](const std::string& strArg) {
+        // Multi-line input: after a top-level command finishes (\n), close_out_params
+        // pops the only stack frame; the next command's arg-end re-enters here with
+        // an empty stack -> back() is UB / aborts under _GLIBCXX_ASSERTIONS.
+        if (stack.empty()) stack.push_back(std::vector<std::string>());
         if (stack.back().empty() && (!nDepthInsideSensitive) && historyFilter.contains(QString::fromStdString(strArg), Qt::CaseInsensitive)) {
             nDepthInsideSensitive = 1;
             filter_begin_pos = chpos;
