@@ -3139,6 +3139,17 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
 
 uint64_t CWallet::GetStakeWeight() const
 {
+    // Cached: the full computation below does GetBalance + SelectCoinsForStaking
+    // (which walks mapWallet end-to-end under LOCK2) + a sum over the result.
+    // On the GUI's 30s updateWeight timer with a 100k+ tx wallet that was the
+    // periodic multi-second "Not Responding" pause; serve a recent value for up
+    // to 5 minutes instead. The miner / RPC stake-weight RPCs also benefit.
+    {
+        LOCK(cs_stakeWeightCache);
+        if (nLastStakeWeightUpdate && GetTime() - nLastStakeWeightUpdate < 300)
+            return nCachedStakeWeight;
+    }
+
     // Choose coins to use
     CAmount nBalance = GetBalance();
 
@@ -3159,11 +3170,19 @@ uint64_t CWallet::GetStakeWeight() const
 
     uint64_t nWeight = 0;
 
-    LOCK2(cs_main, cs_wallet);
-    BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
     {
-        if (pcoin.first->GetDepthInMainChain() >= COINBASE_MATURITY)
-            nWeight += pcoin.first->tx->vout[pcoin.second].nValue;
+        LOCK2(cs_main, cs_wallet);
+        BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
+        {
+            if (pcoin.first->GetDepthInMainChain() >= COINBASE_MATURITY)
+                nWeight += pcoin.first->tx->vout[pcoin.second].nValue;
+        }
+    }
+
+    {
+        LOCK(cs_stakeWeightCache);
+        nCachedStakeWeight = nWeight;
+        nLastStakeWeightUpdate = GetTime();
     }
 
     return nWeight;

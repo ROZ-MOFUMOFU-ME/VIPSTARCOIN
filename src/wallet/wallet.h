@@ -856,6 +856,10 @@ public:
 
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries);
     uint64_t GetStakeWeight() const;
+    /** Cached value + last-compute timestamp, see GetStakeWeight() in wallet.cpp. */
+    mutable uint64_t nCachedStakeWeight = 0;
+    mutable int64_t nLastStakeWeightUpdate = 0;
+    mutable CCriticalSection cs_stakeWeightCache;
     bool CreateCoinStake(const CKeyStore &keystore, unsigned int nBits, const CAmount& nTotalFees, uint32_t nTimeBlock, CMutableTransaction& tx, CKey& key);
     bool AddAccountingEntry(const CAccountingEntry&);
     bool AddAccountingEntry(const CAccountingEntry&, CWalletDB *pwalletdb);
