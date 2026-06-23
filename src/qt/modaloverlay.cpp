@@ -9,8 +9,8 @@
 
 #include "chainparams.h"
 
-#include <QResizeEvent>
 #include <QPropertyAnimation>
+#include <QResizeEvent>
 
 ModalOverlay::ModalOverlay(QWidget *parent) :
 QWidget(parent),
@@ -18,7 +18,8 @@ ui(new Ui::ModalOverlay),
 bestHeaderHeight(0),
 bestHeaderDate(QDateTime()),
 layerIsVisible(false),
-userClosed(false)
+userClosed(false),
+m_animation(nullptr)
 {
     ui->setupUi(this);
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
@@ -154,14 +155,27 @@ void ModalOverlay::showHide(bool hide, bool userRequested)
     if (!isVisible() && !hide)
         setVisible(true);
 
+    // If the overlay has not been laid out yet (height==0), size it to its parent now
+    // so the slide-in animation starts from below the visible area instead of (0,0).
+    if (!hide && height() == 0 && parent())
+        resize(static_cast<QWidget*>(parent())->size());
+
+    // Stop any in-progress animation before starting a new one to avoid two
+    // QPropertyAnimations fighting over the "pos" property simultaneously.
+    if (m_animation) {
+        m_animation->stop();
+        m_animation = nullptr;
+    }
+
     setGeometry(0, hide ? 0 : height(), width(), height());
 
-    QPropertyAnimation* animation = new QPropertyAnimation(this, "pos");
-    animation->setDuration(300);
-    animation->setStartValue(QPoint(0, hide ? 0 : this->height()));
-    animation->setEndValue(QPoint(0, hide ? this->height() : 0));
-    animation->setEasingCurve(QEasingCurve::OutQuad);
-    animation->start(QAbstractAnimation::DeleteWhenStopped);
+    m_animation = new QPropertyAnimation(this, "pos");
+    m_animation->setDuration(300);
+    m_animation->setStartValue(QPoint(0, hide ? 0 : this->height()));
+    m_animation->setEndValue(QPoint(0, hide ? this->height() : 0));
+    m_animation->setEasingCurve(QEasingCurve::OutQuad);
+    connect(m_animation, &QPropertyAnimation::finished, [this]() { m_animation = nullptr; });
+    m_animation->start(QAbstractAnimation::DeleteWhenStopped);
     layerIsVisible = !hide;
 }
 
