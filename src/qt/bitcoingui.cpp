@@ -685,11 +685,17 @@ void BitcoinGUI::setWalletActionsEnabled(bool enabled)
 void BitcoinGUI::createTrayIcon(const NetworkStyle *networkStyle)
 {
 #ifndef Q_OS_MAC
-    trayIcon = new QSystemTrayIcon(this);
-    QString toolTip = tr("%1 client").arg(tr(PACKAGE_NAME)) + " " + networkStyle->getTitleAddText();
-    trayIcon->setToolTip(toolTip);
-    trayIcon->setIcon(networkStyle->getTrayAndWindowIcon());
-    trayIcon->hide();
+    // Pure Wayland (GNOME 40+) has no XEmbed system-tray protocol; constructing
+    // a QSystemTrayIcon would silently swallow showMessage() calls and balloon
+    // notifications. Fall back to trayIcon=nullptr so Notificator routes through
+    // libnotify/D-Bus instead.
+    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        trayIcon = new QSystemTrayIcon(this);
+        QString toolTip = tr("%1 client").arg(tr(PACKAGE_NAME)) + " " + networkStyle->getTitleAddText();
+        trayIcon->setToolTip(toolTip);
+        trayIcon->setIcon(networkStyle->getTrayAndWindowIcon());
+        trayIcon->hide();
+    }
 #endif
 
     notificator = new Notificator(QApplication::applicationName(), trayIcon, this);

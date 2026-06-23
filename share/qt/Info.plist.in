@@ -49,7 +49,10 @@
       <string>com.VIPSTARCOIN.VIPSTARCOINPayment</string>
       <key>CFBundleURLSchemes</key>
       <array>
-        <string>VIPSTARCOIN</string>
+        <!-- paymentserver.cpp / guiutil.cpp compare the URI scheme lowercase
+             (BITCOIN_IPC_PREFIX = "vipstarcoin:"); macOS LaunchServices is
+             case-sensitive here, so register the lowercase form. -->
+        <string>vipstarcoin</string>
       </array>
     </dict>
   </array>

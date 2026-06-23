@@ -590,13 +590,20 @@ int main(int argc, char *argv[])
     Q_INIT_RESOURCE(bitcoin);
     Q_INIT_RESOURCE(bitcoin_locale);
 
+    // Must be set BEFORE BitcoinApplication construction. Qt >= 5.14 ignores
+    // AA_EnableHighDpiScaling (it's deprecated and high-DPI is on by default);
+    // PassThrough rounding lets Wayland fractional scaling (1.25/1.5/1.75) work
+    // correctly instead of rounding to the nearest integer and clipping widgets.
+#if QT_VERSION >= 0x051400
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#elif QT_VERSION >= 0x050600
+    QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
+
     BitcoinApplication app(argc, argv);
 #if QT_VERSION > 0x050100
     // Generate high-dpi pixmaps
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
-#endif
-#if QT_VERSION >= 0x050600
-    QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 #ifdef Q_OS_MAC
     QApplication::setAttribute(Qt::AA_DontShowIconsInMenus);
