@@ -63,6 +63,7 @@
 #include <QVBoxLayout>
 #include <QDockWidget>
 #include <QSizeGrip>
+#include <QDir>
 #include <QFileInfo>
 
 #if QT_VERSION < 0x050000
@@ -292,9 +293,18 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
 #endif
 
     setStyleSheet("QMainWindow::separator { width: 1px; height: 1px; margin: 0px; padding: 0px; background-color:#e8e8e8;}");
-    QFileInfo fileInfo("background.jpg");
-    if(fileInfo.exists())
-        setStyleSheet("QMainWindow {background-image: url(background.jpg);}");
+    // VIPS-girls dress-up: look for background.jpg in the current directory or
+    // next to the exe. Relative url(background.jpg) only resolved when CWD == JPG
+    // location, which broke under shortcut / file-association launches; use the
+    // absolute file:/// URL we just located.
+    for (const QString& d : QStringList{QDir::currentPath(), QCoreApplication::applicationDirPath()}) {
+        QFileInfo fi(QDir(d).filePath("background.jpg"));
+        if (fi.exists()) {
+            setStyleSheet(QString("QMainWindow {background-image: url(\"%1\");}")
+                              .arg(QUrl::fromLocalFile(fi.absoluteFilePath()).toString()));
+            break;
+        }
+    }
 }
 
 BitcoinGUI::~BitcoinGUI()

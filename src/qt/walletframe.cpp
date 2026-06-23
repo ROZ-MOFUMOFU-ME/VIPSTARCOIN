@@ -11,9 +11,12 @@
 
 #include <cstdio>
 
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QFileInfo>
+#include <QUrl>
 
 WalletFrame::WalletFrame(const PlatformStyle *_platformStyle, BitcoinGUI *_gui) :
     QFrame(_gui),
@@ -28,9 +31,17 @@ WalletFrame::WalletFrame(const PlatformStyle *_platformStyle, BitcoinGUI *_gui) 
     walletStack->setStyleSheet("#walletStack {border: 1px solid #c4c1bd;}");
     walletFrameLayout->setContentsMargins(0,0,0,0);
 
-    QFileInfo fileInfo("background_wallet.jpg");
-    if(fileInfo.exists())
-        setStyleSheet("WalletFrame {background-image: url(background_wallet.jpg);}");
+    // VIPS-girls dress-up: look for background_wallet.jpg in the current directory
+    // or next to the exe. Relative url() only resolved when CWD == JPG location,
+    // which broke under shortcut / file-association launches; use file:/// URL.
+    for (const QString& d : QStringList{QDir::currentPath(), QCoreApplication::applicationDirPath()}) {
+        QFileInfo fi(QDir(d).filePath("background_wallet.jpg"));
+        if (fi.exists()) {
+            setStyleSheet(QString("WalletFrame {background-image: url(\"%1\");}")
+                              .arg(QUrl::fromLocalFile(fi.absoluteFilePath()).toString()));
+            break;
+        }
+    }
 
     walletFrameLayout->addWidget(walletStack);
 
