@@ -33,12 +33,13 @@ WalletFrame::WalletFrame(const PlatformStyle *_platformStyle, BitcoinGUI *_gui) 
 
     // VIPS-girls dress-up: look for background_wallet.jpg in the current directory
     // or next to the exe. Relative url() only resolved when CWD == JPG location,
-    // which broke under shortcut / file-association launches; use file:/// URL.
+    // which broke under shortcut / file-association launches. Qt CSS url() takes
+    // a plain quoted path with forward slashes, not a file:/// URL.
     for (const QString& d : QStringList{QDir::currentPath(), QCoreApplication::applicationDirPath()}) {
         QFileInfo fi(QDir(d).filePath("background_wallet.jpg"));
         if (fi.exists()) {
             setStyleSheet(QString("WalletFrame {background-image: url(\"%1\");}")
-                              .arg(QUrl::fromLocalFile(fi.absoluteFilePath()).toString()));
+                              .arg(QDir::fromNativeSeparators(fi.absoluteFilePath())));
             break;
         }
     }
