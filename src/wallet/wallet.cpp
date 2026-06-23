@@ -2344,7 +2344,7 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
     }
 }
 
-void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins) const
+void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins, size_t nMaxCoins) const
 {
     vCoins.clear();
 
@@ -2369,11 +2369,13 @@ void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins) const
                 isminetype mine = IsMine(pcoin->tx->vout[i]);
                 if (!(IsSpent(wtxid, i)) && mine != ISMINE_NO &&
                     !IsLockedCoin((*it).first, i) && (pcoin->tx->vout[i].nValue > 0) &&
-                    !pcoin->tx->vout[i].scriptPubKey.HasOpCall() && !pcoin->tx->vout[i].scriptPubKey.HasOpCreate())
+                    !pcoin->tx->vout[i].scriptPubKey.HasOpCall() && !pcoin->tx->vout[i].scriptPubKey.HasOpCreate()) {
                         vCoins.push_back(COutput(pcoin, i, nDepth,
                                                  ((mine & ISMINE_SPENDABLE) != ISMINE_NO) ||
                                                  (mine & ISMINE_WATCH_SOLVABLE) != ISMINE_NO,
                                                  (mine & (ISMINE_SPENDABLE | ISMINE_WATCH_SOLVABLE)) != ISMINE_NO));
+                        if (nMaxCoins && vCoins.size() >= nMaxCoins) return;
+                }
             }
         }
     }
@@ -2381,8 +2383,12 @@ void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins) const
 
 bool CWallet::HaveAvailableCoinsForStaking() const
 {
+    // ThreadStakeMiner polls this every nMinerSleep, but only cares whether at
+    // least one stakeable coin exists. Cap the scan at 1 so a large wallet
+    // doesn't walk mapWallet end-to-end under LOCK2(cs_main, cs_wallet) every
+    // tick and freeze the GUI.
     vector<COutput> vCoins;
-    AvailableCoinsForStaking(vCoins);
+    AvailableCoinsForStaking(vCoins, 1);
     return vCoins.size() > 0;
 }
 
