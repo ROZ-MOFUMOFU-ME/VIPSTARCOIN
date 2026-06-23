@@ -37,8 +37,6 @@
 #endif
 
 #include <stdint.h>
-#include <exception>
-#include <cstdio>
 
 #include <boost/filesystem/operations.hpp>
 #include <boost/thread.hpp>
@@ -572,91 +570,6 @@ void BitcoinApplication::restoreWallet()
 }
 
 #ifndef BITCOIN_QT_TEST
-#if defined(WIN32)
-// The shipped Windows GUI dies at startup with STATUS_FATAL_APP_EXIT (abort via
-// the C++ verbose terminate handler) — an unhandled exception with no console to
-// print it. It is thrown during static initialization, *before* main(), so the
-// handler is installed from an early constructor (priority 101, before normal C++
-// global ctors) and the message is written to %TEMP%\VIPSTARCOIN-qt-crash.txt as
-// well as shown in a message box, so the throw is captured either way. A
-// SetUnhandledExceptionFilter backstop records non-C++ fatal errors too.
-static std::terminate_handler g_prevTerminateHandler = nullptr;
-static bool g_crashReported = false;
-
-static void VIPSTARCOINReportCrash(const std::string& message)
-{
-    if (g_crashReported) return; // first reporter wins (terminate before abort's SEH)
-    g_crashReported = true;
-    char tmp[MAX_PATH] = {0};
-    DWORD n = ::GetTempPathA(MAX_PATH, tmp);
-    std::string file = (n ? std::string(tmp, n) : std::string()) + "VIPSTARCOIN-qt-crash.txt";
-    if (FILE* f = ::fopen(file.c_str(), "w")) { ::fputs(message.c_str(), f); ::fclose(f); }
-}
-
-static void VIPSTARCOINTerminateHandler()
-{
-    std::string message = "Unhandled C++ exception (std::terminate, no active exception object).";
-    if (std::exception_ptr eptr = std::current_exception()) {
-        try {
-            std::rethrow_exception(eptr);
-        } catch (const std::exception& e) {
-            message = std::string("Unhandled C++ exception:\n\n") + e.what();
-        } catch (...) {
-            message = "Unhandled non-standard C++ exception.";
-        }
-    }
-    VIPSTARCOINReportCrash(message);
-    if (g_prevTerminateHandler) g_prevTerminateHandler();
-    ::abort();
-}
-
-static LONG WINAPI VIPSTARCOINSehFilter(EXCEPTION_POINTERS* info)
-{
-    unsigned long code = (unsigned long)info->ExceptionRecord->ExceptionCode;
-    const char* kind = (code == 0x20474343UL) ? "uncaught C++ exception (GCC throw)" :
-                       (code == 0xC0000005UL) ? "access violation" : "SEH exception";
-    char buf[224];
-    ::snprintf(buf, sizeof(buf), "Fatal startup error: %s, code 0x%08lX at %p.",
-               kind, code, (void*)info->ExceptionRecord->ExceptionAddress);
-    VIPSTARCOINReportCrash(buf);
-    // Let the default handler run so WER writes a crash dump for offline analysis.
-    return EXCEPTION_CONTINUE_SEARCH;
-}
-
-// First-chance handler: MinGW raises STATUS_GCC_THROW (0x20474343) at every C++
-// throw, BEFORE unwinding, so the throwing frames are still live. Record each
-// throw's backtrace (as exe RVAs) to %TEMP%\vip-throw.txt, overwriting. The LAST
-// one written before the process dies is the fatal/uncaught throw -> addr2line it.
-static LONG CALLBACK VIPSTARCOINVeh(EXCEPTION_POINTERS* info)
-{
-    if (info->ExceptionRecord->ExceptionCode == 0x20474343UL) {
-        uintptr_t base = (uintptr_t)::GetModuleHandleW(nullptr);
-        void* frames[48];
-        USHORT n = ::CaptureStackBackTrace(0, 48, frames, nullptr);
-        char tmp[MAX_PATH] = {0};
-        DWORD m = ::GetTempPathA(MAX_PATH, tmp);
-        std::string file = (m ? std::string(tmp, m) : std::string()) + "vip-throw.txt";
-        if (FILE* f = ::fopen(file.c_str(), "w")) {
-            for (USHORT i = 0; i < n; i++) {
-                uintptr_t a = (uintptr_t)frames[i];
-                if (a >= base && a < base + 0x5000000ULL)
-                    ::fprintf(f, "0x%llx\n", (unsigned long long)(0x140000000ULL + (a - base)));
-            }
-            ::fclose(f);
-        }
-    }
-    return EXCEPTION_CONTINUE_SEARCH;
-}
-
-__attribute__((constructor(101)))
-static void VIPSTARCOINInstallCrashHandlers()
-{
-    g_prevTerminateHandler = std::set_terminate(VIPSTARCOINTerminateHandler);
-    ::SetUnhandledExceptionFilter(VIPSTARCOINSehFilter);
-    ::AddVectoredExceptionHandler(1, VIPSTARCOINVeh);
-}
-#endif
-
 int main(int argc, char *argv[])
 {
     SetupEnvironment();
