@@ -144,12 +144,13 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # Windows amd64 — native MSYS2/MinGW GUI build. MSYS2 ships protobuf 5.x (needs
-  # C++17, which breaks the tree's C++11 configure probe), so a minimal protobuf
-  # 3.21 is built from source as C++14 and the Qt5 GUI is linked against it. Qt is
-  # found via pkg-config (WANT_PKGCONFIG) and linked dynamically (MinGW's forced
-  # -all-static can't find Qt, which MSYS2 ships as DLLs only); the Qt DLLs +
-  # plugins are bundled with windeployqt. Produces daemon/cli/tx + the GUI.
+  # Windows amd64 — fully-static single-exe GUI via MSYS2's static Qt5
+  # (mingw-w64-x86_64-qt5-static) + -all-static, so VIPSTARCOIN-qt.exe ships
+  # standalone with NO bundled DLLs/plugins. MSYS2 ships protobuf 5.x (needs
+  # C++17, breaks the tree's C++11 probe) and BDB/qrencode without static libs,
+  # so protobuf 3.21, qrencode 4.1.1 and Berkeley DB 4.8 are built static from
+  # source. The static JPEG image-format plugin is linked by full path so the
+  # background.jpg dress-up works. (Recipe proven by the WinGUIStatic workflow.)
   # -------------------------------------------------------------------------
   windows-amd64:
     name: windows-amd64
@@ -174,12 +175,11 @@ jobs:
             mingw-w64-x86_64-db
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-qrencode
-            mingw-w64-x86_64-qt5-base
-            mingw-w64-x86_64-qt5-tools
-            mingw-w64-x86_64-qt5-svg
+            mingw-w64-x86_64-qt5-static
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-zstd
       - name: Build protobuf 3.21 (C++14, static)
         run: |
           set -e
@@ -190,53 +190,91 @@ jobs:
             -Dprotobuf_BUILD_SHARED_LIBS=OFF -Dprotobuf_WITH_ZLIB=OFF \
             -DCMAKE_CXX_STANDARD=14 -DCMAKE_INSTALL_PREFIX="$HOME/pb21"
           ninja -C build && ninja -C build install
-      - name: Build VIPSTARCOIN (Qt5 GUI)
+      - name: Build qrencode 4.1.1 (static)
+        run: |
+          set -e
+          # MSYS2 ships qrencode as an import lib only (no libqrencode.a), so the
+          # all-static GUI link fails with "cannot find -lqrencode". Build a static
+          # libqrencode.a from source (no tools -> no libpng dep).
+          git clone --depth 1 -b v4.1.1 https://github.com/fukuchi/libqrencode "$HOME/qrsrc"
+          # qrencode 4.1.1's cmake_minimum_required predates 3.5, which CMake 4.x
+          # refuses; the policy-min flag lets it configure anyway.
+          cmake -G Ninja -S "$HOME/qrsrc" -B "$HOME/qrsrc/build" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWITH_TOOLS=NO -DWITH_TESTS=NO -DCMAKE_INSTALL_PREFIX="$HOME/qr"
+          ninja -C "$HOME/qrsrc/build" && ninja -C "$HOME/qrsrc/build" install
+      - name: Build Berkeley DB 4.8 (static, MinGW)
+        run: |
+          set -e
+          # MSYS2 ships BDB as a DLL only (libdb_cxx-6.2.dll), which keeps the GUI
+          # link dynamic and drags in libgcc/libstdc++/libwinpthread DLLs. Build a
+          # static BDB 4.8 so the exe is self-contained and the wallet uses the
+          # portable 4.8 format.
+          ./contrib/install_db4.sh "$PWD" --enable-mingw
+          ls -l "$PWD/db4/lib/libdb_cxx-4.8.a"
+      - name: Build VIPSTARCOIN (static Qt5 GUI -> single exe)
         run: |
           set -e
           unset JAVA_HOME
-          # pkg-config for Qt5/protobuf (WANT_PKGCONFIG opts MinGW back in; ALLOW_
-          # SYSTEM_LIBS makes it emit -L/mingw64/lib so libtool resolves Qt).
+          QTS=/mingw64/qt5-static
           export WANT_PKGCONFIG=yes PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
-          export PKG_CONFIG_PATH="$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export PATH="$HOME/pb21/bin:$PATH"
+          # static-Qt prefix first; --static so pkg-config emits the transitive deps
+          export PKG_CONFIG="pkg-config --static"
+          export PKG_CONFIG_PATH="$QTS/lib/pkgconfig:$HOME/pb21/lib/pkgconfig:/mingw64/lib/pkgconfig"
+          export PATH="$QTS/bin:$HOME/pb21/bin:$PATH"
+          # MSYS2's qt5-static .pc files reference zlib/zstd as `-l:libz` / `-l:libzstd`
+          # (exact filenames that don't exist — only libz.a / libzstd.a do), so the
+          # static link dies with "cannot find -l:libz". Rewrite to plain -lz/-lzstd
+          # (zstd first so the libz rule can't clip `-l:libzstd`).
+          sed -i -E 's/-l:libzstd(\.a)?/-lzstd/g; s/-l:libz(\.a)?/-lz/g' "$QTS"/lib/pkgconfig/*.pc
+          # Qt>=5.8 dropped the aggregate Qt5PlatformSupport.pc and split it into
+          # private *Support static libs that the static qwindows plugin needs.
+          # configure's PKG_CHECK_MODULES([Qt5PlatformSupport]) is fatal when the
+          # .pc is absent, so pre-set QTPLATFORM_{CFLAGS,LIBS}: PKG_CHECK_MODULES
+          # then uses them verbatim and never calls pkg-config.
+          SUPP=""
+          for f in "$QTS"/lib/libQt5*Support.a "$QTS"/lib/libqtfreetype.a; do
+            [ -e "$f" ] || continue
+            b=$(basename "$f" .a); SUPP="$SUPP -l${b#lib}"
+          done
+          export QTPLATFORM_CFLAGS=" "
+          # The static QJpegPlugin (background.jpg dress-up) must be linked in by
+          # full path: libtool silently drops a bare -lqjpeg from a non-standard
+          # plugin -L path, but passes a full-path .a straight through in position.
+          # Plugin archive first, then Qt's bundled libjpeg it depends on.
+          JPEG_A=""
+          for f in "$QTS"/share/qt5/plugins/imageformats/libqjpeg.a "$QTS"/lib/libqtlibjpeg.a; do
+            [ -e "$f" ] && JPEG_A="$JPEG_A $f"
+          done
+          # qwindows.prl also pulls in these system import libs (DirectWrite/Direct2D
+          # font rendering, DWM, printing, session) that no public Qt5*.pc carries.
+          # All deps live inside one --start-group so single-pass link order is moot.
+          export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -ldwrite -ld2d1 -lwtsapi32 -lwinspool -lshlwapi -ldwmapi -Wl,--end-group$JPEG_A"
+          export QR_CFLAGS="-I$HOME/qr/include"
+          export QR_LIBS="-L$HOME/qr/lib -lqrencode"
           ./autogen.sh
-          ./configure --with-gui=qt5 --without-miniupnpc --with-incompatible-bdb --disable-reduce-exports --disable-shared \
+          ./configure --with-gui=qt5 --without-miniupnpc --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
+            --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
             CXXFLAGS="-std=c++14" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
-            MOC=/mingw64/bin/moc UIC=/mingw64/bin/uic RCC=/mingw64/bin/rcc \
-            LRELEASE=/mingw64/bin/lrelease-qt5 LUPDATE=/mingw64/bin/lupdate-qt5 \
-            BDB_LIBS="-ldb_cxx" BDB_CFLAGS=""
-          # MinGW forces LIBTOOL_APP_LDFLAGS=-all-static, which needs static Qt libs
-          # that MSYS2 doesn't ship; override so Qt links dynamically (DLLs bundled).
-          make ${MAKEJOBS} LIBTOOL_APP_LDFLAGS=
-      - name: Stage and package (windeployqt + DLLs)
+            MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
+            LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
+            LDFLAGS="-static -static-libgcc -static-libstdc++" \
+            BDB_LIBS="-L$PWD/db4/lib -ldb_cxx-4.8" BDB_CFLAGS="-I$PWD/db4/include"
+          # keep the MinGW default LIBTOOL_APP_LDFLAGS=-all-static (static Qt has .a now)
+          make ${MAKEJOBS}
+      - name: Stage and package (single static exe)
         run: |
-          # GitHub forces -eo pipefail; turn it off for best-effort DLL bundling.
           set +e +o pipefail
           OUT="VIPSTARCOIN-windows-amd64"; mkdir -p "$OUT"
           for b in VIPSTARCOINd VIPSTARCOIN-cli VIPSTARCOIN-tx; do cp "src/$b.exe" "$OUT/" 2>/dev/null || true; done
           cp src/qt/VIPSTARCOIN-qt.exe "$OUT/"
-          WDQ=$(command -v windeployqt || command -v windeployqt-qt5)
-          "$WDQ" --release --compiler-runtime --no-opengl-sw "$OUT/VIPSTARCOIN-qt.exe" \
-            || echo "windeployqt non-zero (optional GL DLL missing); continuing"
-          # windeployqt can bail before copying the platform plugin (no GUI without
-          # it), so copy the essential Qt plugins by hand.
-          QTP=/mingw64/share/qt5/plugins
-          mkdir -p "$OUT/platforms" "$OUT/styles" "$OUT/imageformats"
-          cp "$QTP/platforms/qwindows.dll" "$OUT/platforms/" 2>/dev/null
-          cp "$QTP/styles/qwindowsvistastyle.dll" "$OUT/styles/" 2>/dev/null
-          cp "$QTP"/imageformats/q*.dll "$OUT/imageformats/" 2>/dev/null
-          # Bundle remaining MinGW/runtime DLLs the binaries + plugins need.
-          for pass in 1 2 3; do
-            for f in "$OUT"/*.exe "$OUT"/*.dll "$OUT"/platforms/*.dll "$OUT"/styles/*.dll "$OUT"/imageformats/*.dll; do
-              [ -e "$f" ] || continue
-              ldd "$f" 2>/dev/null | grep -i '/mingw64/bin/' | awk '{print $3}' | while read -r d; do
-                cp -n "$d" "$OUT/" 2>/dev/null || true
-              done
-            done
-          done
-          ls -1 "$OUT" | head -60; echo "file count: $(ls -1 "$OUT" | wc -l)"
+          for f in "$OUT"/*.exe; do strip "$f" 2>/dev/null || true; done
+          echo "=== sizes ==="; ls -lh "$OUT"
+          echo "=== ldd VIPSTARCOIN-qt.exe (want: NO /mingw64 DLLs) ==="
+          ldd "$OUT/VIPSTARCOIN-qt.exe" | grep -i mingw64 && echo "  ^ still has DLL deps" || echo "  (fully static — no mingw64 DLL deps)"
           zip -r "${OUT}.zip" "$OUT" >/dev/null
       - uses: actions/upload-artifact@v4
         with:
