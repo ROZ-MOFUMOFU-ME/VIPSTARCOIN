@@ -9,6 +9,24 @@ What is VIPSTARCOIN?
 VIPSTARCOIN is a new blockchain based on HTMLCOIN which uses Bitcoin Core and integrates Ethereum based smart contracts. It implements an extensible design which is capable of adding more VMs, enabled primarily through the Account Abstraction Layer, which allows for an account based virtual machine to function on a UTXO based blockchain. 
 
 
+This Fork
+---------
+
+`ROZ-MOFUMOFU-ME/VIPSTARCOIN` is a maintained personal fork that stays on the official [VIPSTARCOIN/VIPSTARCOIN](https://github.com/VIPSTARCOIN/VIPSTARCOIN) codebase and adds targeted fixes on top. The sister fork [vipstar-dev/VIPSTARCOIN](https://github.com/vipstar-dev/VIPSTARCOIN) takes the opposite approach — a full port to a newer Qtum / Bitcoin Core 0.18+ base — but has been dormant since 2021-05 and is mining-pool-incompatible (its modernized `getblocktemplate` / `ScriptForMining` shape differs from what existing pool software such as v-nomp expects).
+
+Notable additions on top of upstream `VIPSTARCOIN/VIPSTARCOIN`:
+
+- **Sync ~548× faster** — replaced the O(n) `pprev` walk in `CheckSyncCheckpoint` with the skip-list `GetAncestor` (O(log n)); block-connect 977 ms → 0.7 ms median during IBD.
+- **Debian 13 / GCC 14+ buildable** — version-volatile libs (Boost, miniupnpc, libevent) are statically linked in CI; release binaries depend only on libcrypto3 + glibc + libstdc++.
+- **Mining-pool ZMQ restored** — minimal static libzmq linked into the daemon (the canonical build had dropped ZMQ, breaking pool block-notify).
+- **Static Windows Qt5 GUI single-exe** — `qt5-static` + static BDB 4.8 / qrencode / protobuf; `Q_IMPORT_PLUGIN(qwindows)` so no platform-plugin DLLs need to ship.
+- **Windows GUI crash & freeze fixes** — `CDataStream::read` 0-size read guard; wallet-DB error contained in `CWallet::SyncTransaction` (clean shutdown instead of node abort); `RPCParseCommandLine` empty-stack guard (multi-line debug-console paste); `-guimaxtxrows=N` opt-in to cap the transaction table for very large staking wallets.
+- **Staker freeze fix** — `HaveAvailableCoinsForStaking` walked the whole `mapWallet` under `LOCK2(cs_main, cs_wallet)` every poll just to return `bool`; capped the scan at the first stakeable coin, eliminating periodic ~10 s GUI freezes on 100k+ tx wallets.
+- **EVM state cache** — `-evmdbcache=<MB>` (default 256) tunes the EVM state LevelDB (LRU block cache + bloom + write buffer).
+
+Trade-off vs `vipstar-dev`: this fork is much smaller (~0.2k lines / ~80 commits vs ~178k lines / ~28k commits), keeps wire- and RPC-compatibility with the original code (mining pools, on-disk formats), and is actively maintained. It does not pick up post-0.16 Bitcoin Core features (e.g. fee bumping, newer compact-block forms) unless they get backported.
+
+
 Quickstart
 ----------
 ### Build on Debian
@@ -54,7 +72,7 @@ Quickstart
     # If you want to build the Qt GUI:
     sudo apt-get install libqt5gui5 libqt5core5a libqt5dbus5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler
 
-    git clone https://github.com/VIPSTARCOIN/VIPSTARCOIN --recursive
+    git clone https://github.com/ROZ-MOFUMOFU-ME/VIPSTARCOIN --recursive
     cd VIPSTARCOIN
 
     # Note autogen will prompt to install some more dependencies if needed
@@ -87,7 +105,7 @@ NOTE: Building with Qt4 is still supported, however, could result in a broken UI
 
 1. Clone the VIPSTARCOIN source code and cd into `VIPSTARCOIN`
 
-        git clone --recursive https://github.com/VIPSTARCOIN/VIPSTARCOIN
+        git clone --recursive https://github.com/ROZ-MOFUMOFU-ME/VIPSTARCOIN
         cd VIPSTARCOIN
 
 2.  Build VIPSTARCOIN Core:
@@ -119,7 +137,7 @@ Development Process
 -------------------
 
 The `master` branch is regularly built and tested, but is not guaranteed to be
-completely stable. [Tags](https://github.com/VIPSTARCOIN/VIPSTARCOIN/tags) are created
+completely stable. [Tags](https://github.com/ROZ-MOFUMOFU-ME/VIPSTARCOIN/tags) are created
 regularly to indicate new official, stable release versions of VIPSTARCOIN.
 
 The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md).
