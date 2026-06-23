@@ -7,6 +7,7 @@
 #include "bitcoingui.h"
 #include "walletview.h"
 #include "tabbarinfo.h"
+#include "util.h"
 #include "wallet/wallet.h"
 
 #include <cstdio>
@@ -31,15 +32,12 @@ WalletFrame::WalletFrame(const PlatformStyle *_platformStyle, BitcoinGUI *_gui) 
     walletStack->setStyleSheet("#walletStack {border: 1px solid #c4c1bd;}");
     walletFrameLayout->setContentsMargins(0,0,0,0);
 
-    // VIPS-girls dress-up: look for background_wallet.jpg in the current directory
-    // or next to the exe. Relative url() only resolved when CWD == JPG location,
-    // which broke under shortcut / file-association launches. Qt CSS url() takes
-    // a plain quoted path with forward slashes, not a file:/// URL.
     for (const QString& d : QStringList{QDir::currentPath(), QCoreApplication::applicationDirPath()}) {
         QFileInfo fi(QDir(d).filePath("background_wallet.jpg"));
         if (fi.exists()) {
-            setStyleSheet(QString("WalletFrame {background-image: url(\"%1\");}")
-                              .arg(QDir::fromNativeSeparators(fi.absoluteFilePath())));
+            QString path = QDir::fromNativeSeparators(fi.absoluteFilePath());
+            setStyleSheet(QString("WalletFrame { background-image: url(\"%1\"); }").arg(path));
+            LogPrintf("GUI: dress-up background_wallet.jpg found at %s\n", path.toStdString());
             break;
         }
     }

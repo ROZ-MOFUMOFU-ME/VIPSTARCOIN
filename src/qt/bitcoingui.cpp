@@ -292,20 +292,17 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
     }
 #endif
 
-    setStyleSheet("QMainWindow::separator { width: 1px; height: 1px; margin: 0px; padding: 0px; background-color:#e8e8e8;}");
-    // VIPS-girls dress-up: look for background.jpg in the current directory or
-    // next to the exe. Relative url(background.jpg) only resolved when CWD == JPG
-    // location, which broke under shortcut / file-association launches. Qt CSS
-    // url() wants a plain path with forward slashes (it does NOT accept a
-    // file:/// URL there), so we quote the absolute path verbatim.
+    QString baseStyle = "QMainWindow::separator { width: 1px; height: 1px; margin: 0px; padding: 0px; background-color:#e8e8e8;}";
     for (const QString& d : QStringList{QDir::currentPath(), QCoreApplication::applicationDirPath()}) {
         QFileInfo fi(QDir(d).filePath("background.jpg"));
         if (fi.exists()) {
-            setStyleSheet(QString("QMainWindow {background-image: url(\"%1\");}")
-                              .arg(QDir::fromNativeSeparators(fi.absoluteFilePath())));
+            QString path = QDir::fromNativeSeparators(fi.absoluteFilePath());
+            baseStyle += QString(" QMainWindow { background-image: url(\"%1\"); }").arg(path);
+            LogPrintf("GUI: dress-up background.jpg found at %s\n", path.toStdString());
             break;
         }
     }
+    setStyleSheet(baseStyle);
 }
 
 BitcoinGUI::~BitcoinGUI()

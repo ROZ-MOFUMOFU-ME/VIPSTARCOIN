@@ -119,10 +119,19 @@ jobs:
             b=$(basename "$f" .a); SUPP="$SUPP -l${b#lib}"
           done
           export QTPLATFORM_CFLAGS=" "
+          # The static QJpegPlugin (background.jpg dress-up) must be linked in by
+          # full path: libtool silently drops a bare -lqjpeg from a non-standard
+          # plugin -L path, but passes a full-path .a straight through in position.
+          # Plugin archive first, then Qt's bundled libjpeg it depends on. Appended
+          # to QTPLATFORM_LIBS so it flows into QT_LIBS after the app objects.
+          JPEG_A=""
+          for f in "$QTS"/share/qt5/plugins/imageformats/libqjpeg.a "$QTS"/lib/libqtlibjpeg.a; do
+            [ -e "$f" ] && JPEG_A="$JPEG_A $f"
+          done
           # qwindows.prl also pulls in these system import libs (DirectWrite/Direct2D
           # font rendering, DWM, printing, session) that no public Qt5*.pc carries.
           # All deps live inside one --start-group so single-pass link order is moot.
-          export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -ldwrite -ld2d1 -lwtsapi32 -lwinspool -lshlwapi -ldwmapi -Wl,--end-group"
+          export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -ldwrite -ld2d1 -lwtsapi32 -lwinspool -lshlwapi -ldwmapi -Wl,--end-group$JPEG_A"
           echo "QTPLATFORM_LIBS=$QTPLATFORM_LIBS"
           # point QR detection at our static libqrencode.a (PKG_CHECK_MODULES uses
           # these pre-set vars verbatim and skips the system import-only .pc).
