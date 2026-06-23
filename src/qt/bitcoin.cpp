@@ -590,13 +590,12 @@ int main(int argc, char *argv[])
     Q_INIT_RESOURCE(bitcoin);
     Q_INIT_RESOURCE(bitcoin_locale);
 
-    // Must be set BEFORE BitcoinApplication construction. Qt >= 5.14 ignores
-    // AA_EnableHighDpiScaling (it's deprecated and high-DPI is on by default);
-    // PassThrough rounding lets Wayland fractional scaling (1.25/1.5/1.75) work
-    // correctly instead of rounding to the nearest integer and clipping widgets.
-#if QT_VERSION >= 0x051400
-    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-#elif QT_VERSION >= 0x050600
+    // Note: setHighDpiScaleFactorRoundingPolicy(PassThrough) was tried here
+    // but caused continuous QFont::setPixelSize: Pixel size <= 0 (0) churn on
+    // Windows with fractional system scaling, freezing the GUI. Reverted to
+    // the default (Round) policy. AA_EnableHighDpiScaling is a no-op on Qt
+    // 5.14+ (high-DPI is on by default) but kept here for older toolchains.
+#if QT_VERSION >= 0x050600 && QT_VERSION < 0x051400
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
