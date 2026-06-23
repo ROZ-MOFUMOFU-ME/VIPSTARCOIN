@@ -19,8 +19,8 @@ Notable additions on top of upstream `VIPSTARCOIN/VIPSTARCOIN`:
 - **Sync ~548× faster** — replaced the O(n) `pprev` walk in `CheckSyncCheckpoint` with the skip-list `GetAncestor` (O(log n)); block-connect 977 ms → 0.7 ms median during IBD.
 - **Debian 13 / GCC 14+ buildable** — version-volatile libs (Boost, miniupnpc, libevent) are statically linked in CI; release binaries depend only on libcrypto3 + glibc + libstdc++.
 - **Mining-pool ZMQ restored** — minimal static libzmq linked into the daemon (the canonical build had dropped ZMQ, breaking pool block-notify).
-- **Static Windows Qt5 GUI single-exe** — `qt5-static` + static BDB 4.8 / qrencode / protobuf; `Q_IMPORT_PLUGIN(qwindows)` so no platform-plugin DLLs need to ship.
-- **Windows GUI crash & freeze fixes** — `CDataStream::read` 0-size read guard; wallet-DB error contained in `CWallet::SyncTransaction` (clean shutdown instead of node abort); `RPCParseCommandLine` empty-stack guard (multi-line debug-console paste); `-guimaxtxrows=N` opt-in to cap the transaction table for very large staking wallets.
+- **Static Windows Qt5 GUI single-exe** — `qt5-static` + static BDB 4.8 / qrencode / protobuf; the `qwindows` platform plugin and the `QJpegPlugin` image-format plugin are compiled in (`Q_IMPORT_PLUGIN`), so the exe ships standalone with no plugin DLLs. This is the official `windows-amd64` release artifact.
+- **Windows GUI crash & freeze fixes** — `CDataStream::read` 0-size read guard; wallet-DB error contained in `CWallet::SyncTransaction` (clean shutdown instead of node abort); `RPCParseCommandLine` empty-stack guard (multi-line debug-console paste); chain-sync overlay no longer freezes half-slid (`ModalOverlay` no longer races a second animation onto the same property); `-guimaxtxrows=N` opt-in to cap the transaction table for very large staking wallets.
 - **Staker freeze fix** — `HaveAvailableCoinsForStaking` walked the whole `mapWallet` under `LOCK2(cs_main, cs_wallet)` every poll just to return `bool`; capped the scan at the first stakeable coin, eliminating periodic ~10 s GUI freezes on 100k+ tx wallets.
 - **EVM state cache** — `-evmdbcache=<MB>` (default 256) tunes the EVM state LevelDB (LRU block cache + bloom + write buffer).
 
@@ -37,7 +37,10 @@ redistributable from this fork), so copy `background.jpg` /
 `background_wallet.jpg` from your existing official install. The lookup uses
 the absolute path of the file, so launching the GUI from a shortcut, file
 association or any working directory works (the earlier dress-up code only
-resolved when CWD happened to be where the JPGs were).
+resolved when CWD happened to be where the JPGs were). The static Windows
+build links the `QJpegPlugin` image-format plugin so JPEGs actually decode —
+without it the static exe logged `Could not create pixmap` and showed no
+background.
 
 
 Quickstart
