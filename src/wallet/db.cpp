@@ -100,7 +100,11 @@ bool CDBEnv::Open(const boost::filesystem::path& pathIn)
     dbenv->set_errfile(fopen(pathErrorFile.string().c_str(), "a")); /// debug
     dbenv->set_flags(DB_AUTO_COMMIT, 1);
     dbenv->set_flags(DB_TXN_WRITE_NOSYNC, 1);
-    dbenv->log_set_config(DB_LOG_AUTO_REMOVE, 1);
+    // Do NOT auto-remove BDB log files. Auto-remove can delete a log that a
+    // not-yet-checkpointed wallet.dat page still depends on, leaving the page
+    // with an LSN "past end of log" -> DB_RUNRECOVERY corruption on the next
+    // write. The logs are tiny; keeping them avoids that whole failure mode.
+    dbenv->log_set_config(DB_LOG_AUTO_REMOVE, 0);
     int ret = dbenv->open(strPath.c_str(),
                          DB_CREATE |
                              DB_INIT_LOCK |

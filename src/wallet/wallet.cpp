@@ -1413,6 +1413,7 @@ void CWallet::SyncTransaction(const CTransaction& tx, const CBlockIndex *pindex,
 {
     LOCK2(cs_main, cs_wallet);
 
+  try {
     if (!pindex && posInBlock == -1)
     {
         // wallets need to refund inputs when disconnecting coinstake
@@ -1434,6 +1435,18 @@ void CWallet::SyncTransaction(const CTransaction& tx, const CBlockIndex *pindex,
         if (mapWallet.count(txin.prevout.hash))
             mapWallet[txin.prevout.hash].MarkDirty();
     }
+  } catch (const std::exception& e) {
+    // A wallet-database failure here (e.g. a corrupt Berkeley DB environment)
+    // would otherwise escape uncaught through the validation signal and
+    // terminate the whole node. Stop cleanly with guidance instead; the coins
+    // in wallet.dat are unaffected by this.
+    void StartShutdown();
+    LogPrintf("CWallet::SyncTransaction: fatal wallet database error: %s\n", e.what());
+    uiInterface.ThreadSafeMessageBox(
+        strprintf(_("A wallet database error occurred while recording a transaction:\n\n%s\n\nYour coins are safe in wallet.dat. Please restart with -salvagewallet, or restore a wallet backup."), e.what()),
+        "", CClientUIInterface::MSG_ERROR);
+    StartShutdown();
+  }
 }
 
 
