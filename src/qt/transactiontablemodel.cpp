@@ -20,6 +20,8 @@
 #include "util.h"
 #include "wallet/wallet.h"
 
+#include <algorithm>
+
 #include <QColor>
 #include <QDateTime>
 #include <QDebug>
@@ -82,10 +84,41 @@ public:
         cachedWallet.clear();
         {
             LOCK2(cs_main, wallet->cs_wallet);
-            for(std::map<uint256, CWalletTx>::iterator it = wallet->mapWallet.begin(); it != wallet->mapWallet.end(); ++it)
+
+            // Decomposing every transaction here runs on the GUI thread while
+            // holding cs_main/cs_wallet, so a very large wallet freezes the UI at
+            // startup (and stalls sync). Optional -guimaxtxrows=N loads only the N
+            // most recent transactions into the table; the full history stays in
+            // wallet.dat (use the daemon's listtransactions to see it).
+            // Default 0 = unlimited (unchanged behaviour).
+            int64_t nMaxRows = GetArg("-guimaxtxrows", 0);
+            if (nMaxRows > 0 && (int64_t)wallet->mapWallet.size() > nMaxRows)
             {
-                if(TransactionRecord::showTransaction(it->second))
-                    cachedWallet.append(TransactionRecord::decomposeTransaction(wallet, it->second));
+                std::vector<const CWalletTx*> vtx;
+                vtx.reserve(wallet->mapWallet.size());
+                for (std::map<uint256, CWalletTx>::iterator it = wallet->mapWallet.begin(); it != wallet->mapWallet.end(); ++it)
+                    vtx.push_back(&it->second);
+                // partition so the nMaxRows newest (largest GetTxTime) come first
+                std::nth_element(vtx.begin(), vtx.begin() + nMaxRows, vtx.end(),
+                    [](const CWalletTx* a, const CWalletTx* b){ return a->GetTxTime() > b->GetTxTime(); });
+                vtx.resize(nMaxRows);
+                // restore hash order (same as iterating mapWallet) so that
+                // updateWallet()'s qLowerBound/qUpperBound on cachedWallet stays valid
+                std::sort(vtx.begin(), vtx.end(),
+                    [](const CWalletTx* a, const CWalletTx* b){ return a->GetHash() < b->GetHash(); });
+                for (size_t i = 0; i < vtx.size(); ++i)
+                    if (TransactionRecord::showTransaction(*vtx[i]))
+                        cachedWallet.append(TransactionRecord::decomposeTransaction(wallet, *vtx[i]));
+                LogPrintf("GUI: wallet has %u transactions; -guimaxtxrows=%d -> loading only the %d most recent into the table (full history remains in wallet.dat)\n",
+                          (unsigned)wallet->mapWallet.size(), (int)nMaxRows, (int)nMaxRows);
+            }
+            else
+            {
+                for(std::map<uint256, CWalletTx>::iterator it = wallet->mapWallet.begin(); it != wallet->mapWallet.end(); ++it)
+                {
+                    if(TransactionRecord::showTransaction(it->second))
+                        cachedWallet.append(TransactionRecord::decomposeTransaction(wallet, it->second));
+                }
             }
         }
     }
