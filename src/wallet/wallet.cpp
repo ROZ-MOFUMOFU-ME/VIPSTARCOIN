@@ -2180,49 +2180,63 @@ void CWallet::ResendWalletTransactions(int64_t nBestBlockTime, CConnman* connman
  */
 
 
-CAmount CWallet::GetBalance() const
+void CWallet::RefreshBalanceCacheIfStale() const
 {
-    CAmount nTotal = 0;
+    {
+        LOCK(cs_balanceCache);
+        if (balanceCache.lastUpdate && GetTime() - balanceCache.lastUpdate < 60)
+            return;
+    }
+
+    CAmount nBal = 0, nUnconf = 0, nImmature = 0, nStake = 0;
     {
         LOCK2(cs_main, cs_wallet);
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
-            const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted())
-                nTotal += pcoin->GetAvailableCredit();
+            const CWalletTx* pcoin = &it->second;
+            // GetBalance / GetUnconfirmedBalance (mutually exclusive)
+            if (pcoin->IsTrusted()) {
+                nBal += pcoin->GetAvailableCredit();
+            } else if (pcoin->GetDepthInMainChain() == 0 && pcoin->InMempool()) {
+                nUnconf += pcoin->GetAvailableCredit();
+            }
+            // GetImmatureBalance (GetImmatureCredit returns 0 for non-immature)
+            nImmature += pcoin->GetImmatureCredit();
+            // GetStake (currently-staking coinstake outputs)
+            if (pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0 && pcoin->GetDepthInMainChain() > 0)
+                nStake += CWallet::GetCredit(*pcoin, ISMINE_SPENDABLE);
         }
     }
 
-    return nTotal;
+    {
+        LOCK(cs_balanceCache);
+        balanceCache.balance = nBal;
+        balanceCache.unconfirmedBalance = nUnconf;
+        balanceCache.immatureBalance = nImmature;
+        balanceCache.stake = nStake;
+        balanceCache.lastUpdate = GetTime();
+    }
+}
+
+CAmount CWallet::GetBalance() const
+{
+    RefreshBalanceCacheIfStale();
+    LOCK(cs_balanceCache);
+    return balanceCache.balance;
 }
 
 CAmount CWallet::GetUnconfirmedBalance() const
 {
-    CAmount nTotal = 0;
-    {
-        LOCK2(cs_main, cs_wallet);
-        for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
-        {
-            const CWalletTx* pcoin = &(*it).second;
-            if (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0 && pcoin->InMempool())
-                nTotal += pcoin->GetAvailableCredit();
-        }
-    }
-    return nTotal;
+    RefreshBalanceCacheIfStale();
+    LOCK(cs_balanceCache);
+    return balanceCache.unconfirmedBalance;
 }
 
 CAmount CWallet::GetImmatureBalance() const
 {
-    CAmount nTotal = 0;
-    {
-        LOCK2(cs_main, cs_wallet);
-        for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
-        {
-            const CWalletTx* pcoin = &(*it).second;
-            nTotal += pcoin->GetImmatureCredit();
-        }
-    }
-    return nTotal;
+    RefreshBalanceCacheIfStale();
+    LOCK(cs_balanceCache);
+    return balanceCache.immatureBalance;
 }
 
 CAmount CWallet::GetWatchOnlyBalance() const
@@ -2441,15 +2455,9 @@ static void ApproximateBestSubset(vector<pair<CAmount, pair<const CWalletTx*,uns
 // ppcoin: total coins staked (non-spendable until maturity)
 CAmount CWallet::GetStake() const
 {
-    CAmount nTotal = 0;
-    LOCK2(cs_main, cs_wallet);
-    for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
-    {
-        const CWalletTx* pcoin = &(*it).second;
-        if (pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0 && pcoin->GetDepthInMainChain() > 0)
-            nTotal += CWallet::GetCredit(*pcoin, ISMINE_SPENDABLE);
-    }
-    return nTotal;
+    RefreshBalanceCacheIfStale();
+    LOCK(cs_balanceCache);
+    return balanceCache.stake;
 }
 
 CAmount CWallet::GetWatchOnlyStake() const

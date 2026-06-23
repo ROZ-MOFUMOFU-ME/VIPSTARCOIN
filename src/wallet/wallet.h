@@ -860,6 +860,21 @@ public:
     mutable uint64_t nCachedStakeWeight = 0;
     mutable int64_t nLastStakeWeightUpdate = 0;
     mutable CCriticalSection cs_stakeWeightCache;
+    /** Consolidated balance cache: WalletModel::checkBalanceChanged() calls all
+     *  four balance accessors back-to-back on every new block; on a 100k+ tx
+     *  wallet each one walks mapWallet end-to-end under LOCK2 ⇒ multi-second
+     *  GUI freeze per block. RefreshBalanceCacheIfStale() computes all four in
+     *  ONE walk and caches them for up to 60 seconds. */
+    struct BalanceCache {
+        CAmount balance = 0;
+        CAmount unconfirmedBalance = 0;
+        CAmount immatureBalance = 0;
+        CAmount stake = 0;
+        int64_t lastUpdate = 0;
+    };
+    mutable BalanceCache balanceCache;
+    mutable CCriticalSection cs_balanceCache;
+    void RefreshBalanceCacheIfStale() const;
     bool CreateCoinStake(const CKeyStore &keystore, unsigned int nBits, const CAmount& nTotalFees, uint32_t nTimeBlock, CMutableTransaction& tx, CKey& key);
     bool AddAccountingEntry(const CAccountingEntry&);
     bool AddAccountingEntry(const CAccountingEntry&, CWalletDB *pwalletdb);
