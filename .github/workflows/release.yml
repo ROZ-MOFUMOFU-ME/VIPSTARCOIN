@@ -288,9 +288,12 @@ jobs:
   # -------------------------------------------------------------------------
   release:
     name: Publish Release
-    # Gate on linux + macOS (both build now). Windows stays continue-on-error
-    # and attaches its artifacts when it succeeds.
-    needs: [linux, macos]
+    # Wait for every platform job (incl. the slower static Windows build) so its
+    # artifact is uploaded before we download+publish. windows-amd64 is
+    # continue-on-error and `if: always()` runs publish regardless, so a Windows
+    # failure still never blocks the linux/macOS release — but when Windows
+    # succeeds (just slower than linux/macOS) its zip is no longer raced out.
+    needs: [linux, macos, windows-amd64]
     if: always() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     steps:
