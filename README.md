@@ -26,6 +26,19 @@ Notable additions on top of upstream `VIPSTARCOIN/VIPSTARCOIN`:
 
 Trade-off vs `vipstar-dev`: this fork is much smaller (~0.2k lines / ~80 commits vs ~178k lines / ~28k commits), keeps wire- and RPC-compatibility with the original code (mining pools, on-disk formats), and is actively maintained. It does not pick up post-0.16 Bitcoin Core features (e.g. fee bumping, newer compact-block forms) unless they get backported.
 
+### VIPS-girls dress-up (background images)
+
+If `background.jpg` and / or `background_wallet.jpg` are present next to the
+GUI exe (or in the directory `VIPSTARCOIN-qt` was launched from), the GUI
+will use them as the main-window and wallet-frame backgrounds. The release
+binaries deliberately do **not** ship the artwork (the official VIPSTARCOIN
+distribution is the only authoritative source — the JPGs are not
+redistributable from this fork), so copy `background.jpg` /
+`background_wallet.jpg` from your existing official install. The lookup uses
+the absolute path of the file, so launching the GUI from a shortcut, file
+association or any working directory works (the earlier dress-up code only
+resolved when CWD happened to be where the JPGs were).
+
 
 Quickstart
 ----------
