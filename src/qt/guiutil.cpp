@@ -862,10 +862,29 @@ void restoreWindowGeometry(const QString& strSetting, const QSize& defaultSize, 
     QPoint pos = settings.value(strSetting + "Pos").toPoint();
     QSize size = settings.value(strSetting + "Size", defaultSize).toSize();
 
-    if (!pos.x() && !pos.y()) {
-        QRect screen = QApplication::desktop()->screenGeometry();
-        pos.setX((screen.width() - size.width()) / 2);
-        pos.setY((screen.height() - size.height()) / 2);
+    QDesktopWidget *desktop = QApplication::desktop();
+
+    // Center on the primary screen when there is no saved position, or when the
+    // saved geometry no longer lands on any connected screen. The latter happens
+    // when the window was last closed on a monitor/resolution that is now gone
+    // (or at any off-screen position): without this guard the frame is restored
+    // off every screen, so the taskbar button exists but clicking it shows
+    // nothing and the window can't be reached with the mouse.
+    bool onScreen = (pos.x() || pos.y());
+    if (onScreen) {
+        QRect frame(pos, size);
+        onScreen = false;
+        for (int i = 0; i < desktop->screenCount(); ++i) {
+            if (desktop->availableGeometry(i).intersects(frame)) {
+                onScreen = true;
+                break;
+            }
+        }
+    }
+    if (!onScreen) {
+        QRect screen = desktop->availableGeometry();
+        pos.setX(screen.x() + (screen.width() - size.width()) / 2);
+        pos.setY(screen.y() + (screen.height() - size.height()) / 2);
     }
 
     parent->resize(size);
