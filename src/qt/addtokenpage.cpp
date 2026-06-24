@@ -146,7 +146,12 @@ void AddTokenPage::on_addressChanged()
 
 void AddTokenPage::on_numBlocksChanged()
 {
-    ui->lineEditSenderAddress->on_refresh();
+    // on_refresh() enumerates ALL wallet UTXOs (AvailableCoins under cs_main).
+    // numBlocksChanged fires every block even while this page is hidden, so on a
+    // large wallet (100k+ UTXOs) it freezes the GUI thread and stalls sync.
+    // Only refresh the address list when this page is actually visible.
+    if(isVisible())
+        ui->lineEditSenderAddress->on_refresh();
 }
 
 void AddTokenPage::on_updateConfirmButton()

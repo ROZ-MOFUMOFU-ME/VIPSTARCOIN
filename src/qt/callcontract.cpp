@@ -189,7 +189,10 @@ void CallContract::on_callContract_clicked()
 
 void CallContract::on_numBlocksChanged()
 {
-    if(m_clientModel)
+    // on_refresh() enumerates ALL wallet UTXOs (AvailableCoins under cs_main);
+    // numBlocksChanged fires every block even while hidden, freezing the GUI and
+    // stalling sync on a large wallet. Only refresh when this page is visible.
+    if(m_clientModel && isVisible())
     {
         ui->lineEditSenderAddress->on_refresh();
     }

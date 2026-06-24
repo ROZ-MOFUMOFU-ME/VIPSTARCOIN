@@ -254,7 +254,12 @@ void SendToContract::on_numBlocksChanged()
         ui->lineEditGasPrice->setMinimum(minGasPrice);
         ui->lineEditGasLimit->setMaximum(blockGasLimit);
 
-        ui->lineEditSenderAddress->on_refresh();
+        // on_refresh() enumerates ALL wallet UTXOs (AvailableCoins under
+        // cs_main); numBlocksChanged fires every block even while this page is
+        // hidden, freezing the GUI and stalling sync on a large wallet. Only
+        // refresh the sender-address list when this page is visible.
+        if(isVisible())
+            ui->lineEditSenderAddress->on_refresh();
     }
 }
 
