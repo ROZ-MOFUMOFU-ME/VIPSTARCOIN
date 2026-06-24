@@ -23,8 +23,11 @@ if [ -e "$(which git 2>/dev/null)" -a "$(git rev-parse --is-inside-work-tree 2>/
     # clean 'dirty' status of touched files that haven't been modified
     git diff >/dev/null 2>/dev/null 
 
-    # if latest commit is tagged and not dirty, then override using the tag name
-    RAWDESC=$(git describe --abbrev=0 2>/dev/null)
+    # if latest commit is tagged and not dirty, then override using the tag name.
+    # Match this fork's lightweight "v*-ROZ" tags (and include --tags so lightweight
+    # tags are considered); without it, plain `git describe` only sees the old
+    # annotated `v1.0.2.7-beta` tag and leaks "-beta" into the version string.
+    RAWDESC=$(git describe --tags --abbrev=0 --match 'v*-ROZ' 2>/dev/null)
     if [ "$(git rev-parse HEAD)" = "$(git rev-list -1 $RAWDESC 2>/dev/null)" ]; then
         git diff-index --quiet HEAD -- && DESC=$RAWDESC
     fi

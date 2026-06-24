@@ -18,13 +18,14 @@ const std::string CLIENT_NAME("VIPSTARCOIN");
 /**
  * Client version number
  *
- * "-ROZ" marks this as the unofficial ROZ-MOFUMOFU-ME fork (official upstream is
- * VIPSTARCOIN/VIPSTARCOIN). It is shown in About / -version / the startup log so
- * users can tell this build apart from the official one. It is intentionally NOT
- * part of FormatSubVersion(), so the P2P subversion stays "/VIPSTARCOIN:x.y.z/"
- * and mining pools that key off it keep working.
+ * The unofficial "-ROZ" mark comes from the git tag name (e.g. v1.0.3-ROZ) via
+ * genbuild.sh -> BUILD_DESC, so a tagged release build already shows
+ * "v1.0.3-ROZ" in About / -version / the startup log. Keep CLIENT_VERSION_SUFFIX
+ * empty here to avoid a doubled "-ROZ-ROZ"; non-tagged dev builds just show the
+ * commit hash, as upstream intends. FormatSubVersion() never uses this anyway, so
+ * the P2P subversion stays "/VIPSTARCOIN:x.y.z/" and mining pools keep working.
  */
-#define CLIENT_VERSION_SUFFIX "-ROZ"
+#define CLIENT_VERSION_SUFFIX ""
 
 
 /**
