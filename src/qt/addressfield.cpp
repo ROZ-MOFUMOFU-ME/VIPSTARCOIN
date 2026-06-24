@@ -81,8 +81,13 @@ void AddressField::on_refresh()
     vector<COutput> vecOutputs;
     assert(pwalletMain != NULL);
 
-    // Fill the list with address
-    if(m_addressType == AddressField::UTXO)
+    // Fill the list with address. The UTXO branch enumerates EVERY wallet coin
+    // (AvailableCoins under cs_main), which freezes the GUI thread on a large
+    // wallet. Several contract/token pages call on_refresh() from
+    // numBlocksChanged on every block, so skip the heavy enumeration entirely
+    // while this field (and thus its owning page) is hidden — it refreshes again
+    // when the page is shown / on addressTypeChanged.
+    if(m_addressType == AddressField::UTXO && isVisible())
     {
         // Fill the list with UTXO
         LOCK2(cs_main, pwalletMain->cs_wallet);

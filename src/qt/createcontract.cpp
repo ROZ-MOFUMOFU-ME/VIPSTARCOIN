@@ -232,7 +232,9 @@ void CreateContract::on_numBlocksChanged()
         ui->lineEditGasPrice->setMinimum(minGasPrice);
         ui->lineEditGasLimit->setMaximum(blockGasLimit);
 
-        ui->lineEditSenderAddress->on_refresh();
+        // Skip the all-UTXO refresh while this page is hidden (big-wallet freeze)
+        if(isVisible())
+            ui->lineEditSenderAddress->on_refresh();
     }
 }
 
