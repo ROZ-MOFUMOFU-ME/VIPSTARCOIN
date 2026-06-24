@@ -19,7 +19,14 @@ fi
 
 DESC=""
 SUFFIX=""
-if [ -e "$(which git 2>/dev/null)" -a "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+# CI passes the pushed tag name via FORCE_BUILD_DESC so the version string is
+# correct even where git describe can't resolve the tag -- e.g. the Windows
+# MSYS2 job, whose git differs from the native git that actions/checkout used to
+# fetch the tags, leaving git describe empty and the build on the commit-suffix
+# fallback (which shipped a wrong "-beta" version).
+if [ -n "$FORCE_BUILD_DESC" ]; then
+    DESC="$FORCE_BUILD_DESC"
+elif [ -e "$(which git 2>/dev/null)" -a "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
     # clean 'dirty' status of touched files that haven't been modified
     git diff >/dev/null 2>/dev/null 
 

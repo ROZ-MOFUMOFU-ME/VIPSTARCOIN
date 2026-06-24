@@ -15,6 +15,12 @@ permissions:
 
 env:
   MAKEJOBS: "-j3"
+  # On a tag push, pin every platform's version string to the tag name (e.g.
+  # v1.0.3-ROZ) through genbuild.sh, rather than relying on each job's git to
+  # resolve the tag. The Windows/MSYS2 job's git describe comes up empty
+  # (actions/checkout fetched the tags with the native Windows git), which left
+  # its binary reading v1.0.3.0-beta. Empty on workflow_dispatch -> git fallback.
+  FORCE_BUILD_DESC: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
 
 jobs:
   # -------------------------------------------------------------------------
