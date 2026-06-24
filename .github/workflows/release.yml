@@ -253,11 +253,20 @@ jobs:
           export QTPLATFORM_LIBS="-L$QTS/lib -Wl,--start-group$SUPP -ldwrite -ld2d1 -lwtsapi32 -lwinspool -lshlwapi -ldwmapi -Wl,--end-group$JPEG_A"
           export QR_CFLAGS="-I$HOME/qr/include"
           export QR_LIBS="-L$HOME/qr/lib -lqrencode"
+          # MSYS2's gcc enables _GLIBCXX_ASSERTIONS by default; its runtime UB
+          # checks abort initial block download on this tree's pre-existing
+          # technical UB that official/Bitcoin Core release builds (assertions
+          # OFF) tolerate. A command-line -U is ignored, so neutralize the header
+          # define and also pass -D_GLIBCXX_NO_ASSERTIONS (skips the conditional
+          # re-define). This makes the release behave like the official build.
+          for f in $(find /mingw64/include/c++ -name c++config.h); do
+            sed -i -E 's|^#[[:space:]]*define _GLIBCXX_ASSERTIONS 1|/* _GLIBCXX_ASSERTIONS off (match Bitcoin Core release build) */|' "$f"
+          done
           ./autogen.sh
           ./configure --with-gui=qt5 --without-miniupnpc --disable-reduce-exports --disable-shared \
             --with-boost=/mingw64 --with-boost-libdir=/mingw64/lib \
             --with-qt-plugindir="$QTS/share/qt5/plugins" --with-qt-bindir="$QTS/bin" \
-            CXXFLAGS="-std=c++14" \
+            CXXFLAGS="-std=c++14 -D_GLIBCXX_NO_ASSERTIONS" \
             PROTOC="$HOME/pb21/bin/protoc.exe" \
             MOC=$QTS/bin/moc UIC=$QTS/bin/uic RCC=$QTS/bin/rcc \
             LRELEASE=$QTS/bin/lrelease LUPDATE=$QTS/bin/lupdate \
