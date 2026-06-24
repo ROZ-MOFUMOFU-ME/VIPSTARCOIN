@@ -1,6 +1,15 @@
 VIPSTARCOIN Core
 =========
 
+> ⚠️ **Unofficial fork.** This repository is `ROZ-MOFUMOFU-ME/VIPSTARCOIN`, a
+> personal fork maintained by ROZ-MOFUMOFU-ME — **not** the official VIPSTARCOIN
+> client. The official project is
+> **[VIPSTARCOIN/VIPSTARCOIN](https://github.com/VIPSTARCOIN/VIPSTARCOIN)**.
+> Builds from this repo carry a `-ROZ` version suffix (shown in About / the
+> `-version` output / the startup log) so they are easy to tell apart from
+> official releases. The P2P/network protocol and on-disk formats are unchanged.
+> See [This Fork](#this-fork) below for exactly what differs.
+
 http://www.vipstarcoin.jp/
 
 What is VIPSTARCOIN?

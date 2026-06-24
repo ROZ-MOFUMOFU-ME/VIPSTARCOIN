@@ -17,8 +17,14 @@ const std::string CLIENT_NAME("VIPSTARCOIN");
 
 /**
  * Client version number
+ *
+ * "-ROZ" marks this as the unofficial ROZ-MOFUMOFU-ME fork (official upstream is
+ * VIPSTARCOIN/VIPSTARCOIN). It is shown in About / -version / the startup log so
+ * users can tell this build apart from the official one. It is intentionally NOT
+ * part of FormatSubVersion(), so the P2P subversion stays "/VIPSTARCOIN:x.y.z/"
+ * and mining pools that key off it keep working.
  */
-#define CLIENT_VERSION_SUFFIX ""
+#define CLIENT_VERSION_SUFFIX "-ROZ"
 
 
 /**
